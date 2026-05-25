@@ -1,0 +1,10 @@
+networkx
+torch
+torch_geometric
+pyverilog
+numpy
+pandas
+celery
+redis
+scikit-learn
+matplotlib
