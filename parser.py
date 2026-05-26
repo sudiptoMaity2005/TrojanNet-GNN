@@ -1,171 +1,174 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from pyverilog.vparser.parser import parse  # pyrefly: ignore [missing-import]
+from pyverilog.vparser.ast import InstanceList, Assign, Always, NonblockingSubstitution, BlockingSubstitution, Identifier, Pointer, Partselect, ModuleDef  # pyrefly: ignore [missing-import]
 
 class NetlistGraphBuilder:
-    def __init__(self, filepath):
-        self.filepath = filepath
+    def __init__(self, filepaths, top_module="uart"):
+        self.filepaths = filepaths if isinstance(filepaths, list) else [filepaths]
+        self.top_module = top_module
         self.graph = nx.DiGraph()
-        self.net_drivers = {} # net_name -> driving_node
-        self.net_receivers = {} # net_name -> list of receiving_nodes
-        
+        self.modules = {}
+
     def build(self):
-        ast, _ = parse([self.filepath])
-        
+        ast, _ = parse(self.filepaths)
         for desc in ast.description.definitions:
-            if type(desc).__name__ == 'ModuleDef':
-                self.process_module(desc)
-        
-        self.construct_edges()
+            if isinstance(desc, ModuleDef):
+                self.modules[desc.name] = desc
+                
+        if self.top_module not in self.modules:
+            # Fallback to the first module if top_module isn't found
+            self.top_module = list(self.modules.keys())[0]
+            
+        self._flatten_module(self.top_module, instance_prefix="")
         self.extract_features()
         return self.graph
 
-    def process_module(self, module):
+    def _get_identifiers(self, node):
+        """Recursively extract all Identifier names from an AST node (RHS or LHS)."""
+        ids = []
+        if isinstance(node, Identifier):
+            ids.append(node.name)
+        elif isinstance(node, (Pointer, Partselect)):
+            if isinstance(node.var, Identifier):
+                ids.append(node.var.name)
+        elif hasattr(node, 'children'):
+            for child in node.children():
+                ids.extend(self._get_identifiers(child))
+        return ids
+
+    def _flatten_module(self, module_name, instance_prefix=""):
+        module = self.modules[module_name]
+        
+        # 1. Add Ports
         if hasattr(module, 'portlist') and module.portlist:
             for port in module.portlist.ports:
-                port_type = type(port).__name__
-                if port_type == 'Ioport':
+                if type(port).__name__ == 'Ioport':
                     decl = port.first
-                    decl_type = type(decl).__name__
-                    if decl_type == 'Input':
-                        self.graph.add_node(decl.name, type='INPUT')
-                        self.net_drivers[decl.name] = decl.name
-                    elif decl_type == 'Output':
-                        self.graph.add_node(decl.name, type='OUTPUT')
-                        if decl.name not in self.net_receivers:
-                            self.net_receivers[decl.name] = []
-                        self.net_receivers[decl.name].append(decl.name)
+                    node_name = f"{instance_prefix}{decl.name}"
+                    if type(decl).__name__ == 'Input':
+                        self.graph.add_node(node_name, type='INPUT')
+                    elif type(decl).__name__ == 'Output':
+                        self.graph.add_node(node_name, type='OUTPUT')
 
+        # 2. Parse Items
         for item in module.items:
             item_type = type(item).__name__
+            
+            # Extract Input/Output Declarations (Verilog-1995 style)
             if item_type == 'Decl':
                 for decl in item.list:
                     decl_type = type(decl).__name__
                     if decl_type == 'Input':
-                        self.graph.add_node(decl.name, type='INPUT')
-                        self.net_drivers[decl.name] = decl.name
+                        node_name = f"{instance_prefix}{decl.name}"
+                        self.graph.add_node(node_name, type='INPUT')
                     elif decl_type == 'Output':
-                        self.graph.add_node(decl.name, type='OUTPUT')
-                        if decl.name not in self.net_receivers:
-                            self.net_receivers[decl.name] = []
-                        self.net_receivers[decl.name].append(decl.name)
-            elif item_type == 'InstanceList':
-                for instance in item.instances:
-                    self.process_instance(instance)
-                    
-    def process_instance(self, instance):
-        gate_type = instance.module.upper()
-        node_name = instance.name
-        if not node_name:
-            node_name = f"{gate_type}_{id(instance)}"
-        
-        self.graph.add_node(node_name, type=gate_type)
-        
-        is_primitive = gate_type.lower() in ['and', 'or', 'nand', 'nor', 'xor', 'xnor', 'not', 'buf']
-        
-        if is_primitive:
-            # For primitives, the first port is the output, subsequent are inputs
-            output_wire = instance.portlist[0].argname.name
-            self.net_drivers[output_wire] = node_name
+                        node_name = f"{instance_prefix}{decl.name}"
+                        self.graph.add_node(node_name, type='OUTPUT')
             
-            for port in instance.portlist[1:]:
-                input_wire = port.argname.name
-                if input_wire not in self.net_receivers:
-                    self.net_receivers[input_wire] = []
-                self.net_receivers[input_wire].append(node_name)
-        else:
-            # For module instantiations, look at port names
-            for port in instance.portlist:
-                port_name = port.portname
-                wire_name = port.argname.name if hasattr(port.argname, 'name') else None
-                if not wire_name:
-                    continue
+            # Structural Instantiations (Gates or Sub-modules)
+            if item_type == 'InstanceList':
+                mod_name = item.module
+                is_gate = mod_name.lower() in ['and', 'nand', 'or', 'nor', 'xor', 'xnor', 'not']
                 
-                # Heuristic for determining if port is output (Y, Q, OUT)
-                if port_name.upper() in ['Y', 'Q', 'OUT']:
-                    self.net_drivers[wire_name] = node_name
-                else:
-                    if wire_name not in self.net_receivers:
-                        self.net_receivers[wire_name] = []
-                    self.net_receivers[wire_name].append(node_name)
+                for instance in item.instances:
+                    inst_name = instance.name
+                    new_prefix = f"{instance_prefix}{inst_name}." if instance_prefix else f"{inst_name}."
                     
-    def construct_edges(self):
-        for net, receivers in self.net_receivers.items():
-            if net in self.net_drivers:
-                driver = self.net_drivers[net]
-                for receiver in receivers:
-                    self.graph.add_edge(driver, receiver, wire=net)
+                    if is_gate:
+                        gate_node = f"{instance_prefix}{inst_name}"
+                        self.graph.add_node(gate_node, type=mod_name.upper())
+                        
+                        if len(instance.portlist) > 0:
+                            out_port = instance.portlist[0].argname
+                            out_wire = f"{instance_prefix}{out_port.name}" if hasattr(out_port, 'name') else f"{instance_prefix}{out_port}"
+                            self.graph.add_edge(gate_node, out_wire, wire=out_wire)
+                            
+                            for in_port in instance.portlist[1:]:
+                                in_wire = f"{instance_prefix}{in_port.argname.name}" if hasattr(in_port.argname, 'name') else f"{instance_prefix}{in_port.argname}"
+                                self.graph.add_edge(in_wire, gate_node, wire=in_wire)
+                    
+                    elif mod_name in self.modules:
+                        # Hierarchical Sub-module
+                        self._flatten_module(mod_name, new_prefix)
+                        
+                        # Map Ports
+                        sub_mod = self.modules[mod_name]
+                        port_dirs = {}
+                        if hasattr(sub_mod, 'portlist') and sub_mod.portlist:
+                            for p in sub_mod.portlist.ports:
+                                if type(p).__name__ == 'Ioport':
+                                    port_dirs[p.first.name] = type(p.first).__name__
+                                    
+                        for portarg in instance.portlist:
+                            port_name = portarg.portname
+                            if port_name:
+                                sub_node = f"{new_prefix}{port_name}"
+                                arg_name = portarg.argname.name if hasattr(portarg.argname, 'name') else str(portarg.argname)
+                                wire_node = f"{instance_prefix}{arg_name}"
+                                
+                                p_dir = port_dirs.get(port_name, 'unknown')
+                                if p_dir == 'Input':
+                                    self.graph.add_edge(wire_node, sub_node, wire=wire_node)
+                                elif p_dir == 'Output':
+                                    self.graph.add_edge(sub_node, wire_node, wire=wire_node)
+                                else:
+                                    self.graph.add_edge(wire_node, sub_node, wire=wire_node)
+                                    self.graph.add_edge(sub_node, wire_node, wire=wire_node)
+
+            # Behavioral Assignments (Assign)
+            elif item_type == 'Assign':
+                lhs_ids = self._get_identifiers(item.left.var)
+                rhs_ids = self._get_identifiers(item.right.var)
+                for lhs in lhs_ids:
+                    lhs_node = f"{instance_prefix}{lhs}"
+                    self.graph.add_node(lhs_node, type='BEHAVIORAL')
+                    for rhs in rhs_ids:
+                        rhs_node = f"{instance_prefix}{rhs}"
+                        self.graph.add_edge(rhs_node, lhs_node, wire=rhs_node)
+
+            # Behavioral Always Blocks
+            elif item_type == 'Always':
+                def extract_assignments(node, current_conds=[]):
+                    assignments = []
+                    node_type = type(node).__name__
+                    
+                    # Track control-flow conditions
+                    new_conds = list(current_conds)
+                    if node_type == 'IfStatement':
+                        new_conds.extend(self._get_identifiers(node.cond))
+                    elif node_type == 'CaseStatement':
+                        new_conds.extend(self._get_identifiers(node.comp))
+                        
+                    if node_type in ['NonblockingSubstitution', 'BlockingSubstitution']:
+                        assignments.append((node, new_conds))
+                    elif hasattr(node, 'children'):
+                        for child in node.children():
+                            assignments.extend(extract_assignments(child, new_conds))
+                    return assignments
+                
+                assigns = extract_assignments(item.statement)
+                for assign, cond_ids in assigns:
+                    lhs_ids = self._get_identifiers(assign.left.var)
+                    # The right hand side includes the actual RHS *plus* any control-flow conditions
+                    rhs_ids = self._get_identifiers(assign.right.var) + cond_ids
+                    
+                    for lhs in lhs_ids:
+                        lhs_node = f"{instance_prefix}{lhs}"
+                        self.graph.add_node(lhs_node, type='BEHAVIORAL')
+                        for rhs in rhs_ids:
+                            rhs_node = f"{instance_prefix}{rhs}"
+                            self.graph.add_edge(rhs_node, lhs_node, wire=rhs_node)
 
     def extract_features(self):
-        gate_types = set([nx.get_node_attributes(self.graph, 'type').get(n, 'UNKNOWN') for n in self.graph.nodes()])
-        gate_types = sorted(list(gate_types))
-        type_to_idx = {t: i for i, t in enumerate(gate_types)}
-        
-        in_degrees = dict(self.graph.in_degree())
-        out_degrees = dict(self.graph.out_degree())
-        deg_centrality = nx.degree_centrality(self.graph)
-        
+        gate_types = ['INPUT', 'OUTPUT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR', 'NOT', 'BEHAVIORAL', 'UNKNOWN']
         for node in self.graph.nodes():
-            node_type = self.graph.nodes[node].get('type', 'UNKNOWN')
-            
-            one_hot = [0.0] * len(gate_types)
-            if node_type in type_to_idx:
-                one_hot[type_to_idx[node_type]] = 1.0
-            
-            struct_feat = [
-                float(in_degrees[node]),
-                float(out_degrees[node]),
-                float(deg_centrality[node])
-            ]
-            
-            self.graph.nodes[node]['x'] = one_hot + struct_feat
-            
-        print(f"Extracted features for {self.graph.number_of_nodes()} nodes. Feature vector length: {len(gate_types) + 3}")
-        return self.graph
+            n_type = self.graph.nodes[node].get('type', 'UNKNOWN')
+            one_hot = [1.0 if n_type == gt else 0.0 for gt in gate_types]
+            in_deg = float(self.graph.in_degree(node))
+            out_deg = float(self.graph.out_degree(node))
+            feat = one_hot + [in_deg, out_deg]
+            self.graph.nodes[node]['x'] = feat
 
 def visualize_graph(graph):
-    plt.figure(figsize=(10, 8))
-    
-    # Create layout
-    pos = nx.spring_layout(graph, seed=42)
-    
-    # Define colors based on node type
-    color_map = []
-    labels = {}
-    for node in graph.nodes():
-        node_type = graph.nodes[node].get('type', 'UNKNOWN')
-        labels[node] = f"{node}\n({node_type})"
-        if node_type == 'INPUT':
-            color_map.append('lightgreen')
-        elif node_type == 'OUTPUT':
-            color_map.append('salmon')
-        else:
-            color_map.append('skyblue')
-            
-    # Draw graph components
-    nx.draw_networkx_nodes(graph, pos, node_color=color_map, node_size=1500, edgecolors='black')
-    nx.draw_networkx_edges(graph, pos, arrowstyle='->', arrowsize=20, edge_color='gray')
-    nx.draw_networkx_labels(graph, pos, labels=labels, font_size=10, font_weight='bold')
-    
-    # Draw edge labels (wire names)
-    edge_labels = nx.get_edge_attributes(graph, 'wire')
-    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='red')
-    
-    plt.title("Netlist DAG Visualization")
-    plt.axis('off')
-    plt.tight_layout()
-    
-    # Save and show
-    plt.savefig('graph.png', dpi=300, bbox_inches='tight')
-    print("Graph visualization saved to graph.png")
-    plt.show()
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        builder = NetlistGraphBuilder(sys.argv[1])
-        g = builder.build()
-        print(f"Graph constructed with {g.number_of_nodes()} nodes and {g.number_of_edges()} edges.")
-        
-        # Visualize the graph
-        visualize_graph(g)
+    print("Graph visualization skipped in batch mode to avoid UI hangs.")

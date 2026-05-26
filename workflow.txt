@@ -1,0 +1,19 @@
+Project Workflow: TrojanNet-GNN
+
+This project is a machine learning pipeline that detects hardware Trojans inside Verilog circuits. The workflow is split into a few different Python scripts that process the circuit, simulate it, and then feed the data into a Graph Neural Network (GNN).
+
+Here's a breakdown of how everything is connected:
+
+1. Parsing the Circuit (parser.py)
+First, we need to convert the raw Verilog code (like the RS232 files in the infected/uninfected folders) into a format the AI can understand. The parser uses PyVerilog to read the circuit and convert it into a directed graph (using NetworkX). The nodes are the logic gates (AND, OR, NOT, etc.) and the edges are the wires connecting them. It also parses the 'always' blocks and 'if/case' statements to make sure the sequential FSM logic is wired up correctly in the graph.
+
+2. Simulating the Hardware (simulator.py)
+Once we have the graph, we need to see how it behaves. The simulator generates 1000 random test vectors and feeds them into the primary inputs of the circuit. Because the circuit has flip-flops and feedback loops, the simulator uses an iterative settling approach—it loops through the gates until the signals stabilize for each clock cycle. While it's running, it counts how many times each wire flips (0 to 1, or 1 to 0) to calculate the "Transition Probability" (TP) for every wire.
+
+3. Exporting the Data (run_rs232.py)
+This is the main script that runs the parser and the simulator on both the clean and infected circuits. It generates two things:
+- CSV files (tp_output_clean.csv and tp_output_infected.csv) which show the transition probabilities for all the wires. These are mostly just for us to read and verify.
+- PyTorch tensors (.pt files). It combines the graph wiring (edge_index) and the node features (the gate type + the TP value) into optimized PyTorch Geometric files. 
+
+4. Training the AI (Colab)
+Finally, we upload the .pt and .csv files to Google Colab. The Colab script compares the clean and infected CSVs to figure out exactly which extra wires belong to the Trojan, and uses that as the ground truth label. Then, we train a 2-layer Graph Convolutional Network (GCN) on the infected .pt file. The model learns to classify which nodes are normal logic and which ones are malicious based on their structure and transition probabilities. After training, it outputs its predictions to a final CSV file.

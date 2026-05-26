@@ -9,14 +9,9 @@ class LogicSimulator:
         self.num_vectors = num_vectors
         self.primary_inputs = [n for n, d in graph.nodes(data=True) if d.get('type') == 'INPUT']
         
-        # Edge Case 1: Sequential loops breaking DAG assumptions
-        try:
-            self.sorted_nodes = list(nx.topological_sort(self.graph))
-        except nx.NetworkXUnfeasible:
-            print("Warning: Graph contains cycles (sequential loops). Topological sort failed.")
-            print("Falling back to breaking feedback loops to force DAG structure...")
-            # For this MVP, we catch the exception. In production, we'd use temporal unrolling.
-            self.sorted_nodes = list(self.graph.nodes())
+        # We no longer need topological sort!
+        # Iterative settling naturally handles sequential feedback loops.
+        self.sorted_nodes = list(self.graph.nodes())
             
         self.transitions = {node: 0 for node in self.graph.nodes()}
         self.previous_state = {node: 0 for node in self.graph.nodes()}
@@ -44,36 +39,50 @@ class LogicSimulator:
             return 1 - input_values[0] if input_values else 1
         elif gt == 'OUTPUT':
             return input_values[0] if input_values else 0
+        elif gt == 'BEHAVIORAL':
+            # Propagate transitions through behavioral FSM/Assign logic via XOR summation
+            return sum(input_values) % 2
         else:
             return input_values[0] if input_values else 0
 
     def generate_vectors(self):
         """Generates random binary test vectors for all primary inputs."""
-        return np.random.randint(0, 2, size=(len(self.primary_inputs), self.num_vectors))
+        self.vectors = np.random.randint(0, 2, size=(len(self.primary_inputs), self.num_vectors))
+        return self.vectors
 
     def simulate(self):
         """Topological Evaluation Loop across all test vectors."""
-        vectors = self.generate_vectors()
+        if not hasattr(self, 'vectors'):
+            self.vectors = self.generate_vectors()
         
         for v_idx in range(self.num_vectors):
-            current_state = {}
+            # Seed the current state with the previous clock cycle's state (essential for FSMs/flip-flops)
+            current_state = self.previous_state.copy()
             
-            # 1. Assign values to primary inputs
+            # 1. Assign values to primary inputs for the new clock cycle
             for i, pi in enumerate(self.primary_inputs):
-                current_state[pi] = vectors[i, v_idx]
+                current_state[pi] = self.vectors[i, v_idx]
                 
-            # 2. Evaluate rest of the graph topologically
-            for node in self.sorted_nodes:
-                if node in self.primary_inputs:
-                    continue
+            # 2. Iterative Settling (evaluate paths until stable)
+            for _ in range(5):
+                next_state = current_state.copy()
+                
+                # Evaluate all nodes (order doesn't matter since we iterate)
+                for node in self.graph.nodes():
+                    if node in self.primary_inputs:
+                        continue
+                        
+                    # Gather inputs from predecessors using CURRENT state
+                    predecessors = list(self.graph.predecessors(node))
+                    input_values = [current_state.get(pred, 0) for pred in predecessors]
                     
-                # Gather inputs from predecessors
-                predecessors = list(self.graph.predecessors(node))
-                input_values = [current_state.get(pred, 0) for pred in predecessors]
+                    gate_type = self.graph.nodes[node].get('type', 'UNKNOWN')
+                    next_state[node] = self._evaluate_gate(gate_type, input_values)
                 
-                gate_type = self.graph.nodes[node].get('type', 'UNKNOWN')
-                new_val = self._evaluate_gate(gate_type, input_values)
-                current_state[node] = new_val
+                # If stable, break early to save compute
+                if next_state == current_state:
+                    break
+                current_state = next_state
                 
             # 3. Transition Counting (Side-channel heuristic)
             if v_idx > 0:
