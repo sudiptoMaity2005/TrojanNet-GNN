@@ -1,0 +1,15 @@
+# Ignore the heavy downloaded benchmarks (they should be downloaded directly on the lab computer)
+benchmarks/
+
+# Ignore Python cache and compiler generated files
+__pycache__/
+parser.out
+parsetab.py
+
+# Ignore virtual environments
+venv/
+env/
+.env/
+
+# Ignore OS files
+.DS_Store
