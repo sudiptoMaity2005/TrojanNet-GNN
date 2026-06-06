@@ -1,12 +1,26 @@
 import os
 import glob
 import pandas as pd
-from tarmac import tarmac_test_generation
+import signal
+from tarmac_optimized import tarmac_test_generation
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Timeout")
 
 def run_experiments():
     results = []
+    finished_circuits = set()
     
-    # Automatically grab ALL 581 TRIT-TC benchmark circuits!
+    csv_file = "tarmac_results.csv"
+    if os.path.exists(csv_file):
+        df_old = pd.read_csv(csv_file)
+        results = df_old.to_dict('records')
+        finished_circuits = set(df_old['Circuit'].tolist())
+        print(f"Loaded {len(finished_circuits)} previously completed circuits from CSV.")
+
     base_dir = "benchmarks/TRIT-TC"
     benchmark_dirs = []
     if os.path.exists(base_dir):
@@ -15,39 +29,65 @@ def run_experiments():
             if os.path.isdir(full_path):
                 benchmark_dirs.append(full_path)
     
-    benchmark_dirs.sort() # Ensure consistent ordering
+    benchmark_dirs.sort() 
+    
+    # Set the signal handler for the alarm
+    signal.signal(signal.SIGALRM, timeout_handler)
     
     for b_dir in benchmark_dirs:
-        # Find the .v file in the directory
         v_files = glob.glob(os.path.join(b_dir, "*.v"))
         if not v_files:
-            print(f"Skipping {b_dir}, no .v file found.")
             continue
             
         circuit_file = v_files[0]
         circuit_name = os.path.basename(circuit_file).replace(".v", "")
         
+        if circuit_name in finished_circuits:
+            continue
+
         print(f"\n======================================")
-        print(f"Starting experiment on: {circuit_name}")
+        print(f"Starting OPTIMIZED experiment on: {circuit_name}")
         print(f"======================================")
         
         try:
             res = {}
-            # Try progressively more relaxed thresholds if no rare signals are found at 10%
             for threshold in [0.1, 0.2, 0.3, 0.4, 0.5]:
                 print(f"   --> Trying with Rare Threshold: {threshold}")
-                res = tarmac_test_generation(
-                    circuit_file=circuit_file,
-                    top_module=circuit_name,
-                    num_vectors=3,        
-                    rare_threshold=threshold    
-                )
-                if len(res) > 0:
+                
+                # Set a strict 60-second timeout for the computation
+                signal.alarm(60)
+                try:
+                    res = tarmac_test_generation(
+                        circuit_file=circuit_file,
+                        top_module=circuit_name,
+                        num_vectors=3,        
+                        rare_threshold=threshold    
+                    )
+                    # Disable alarm if successful
+                    signal.alarm(0)
+                except TimeoutException:
+                    print(f"TIMEOUT! Hit 60-second limit for {circuit_name}")
+                    signal.alarm(0)
+                    res = "TIMEOUT"
+                    break
+                except Exception as e:
+                    signal.alarm(0)
+                    raise e
+                    
+                if isinstance(res, dict) and len(res) > 0:
                     break
             
-            if len(res) == 0:
+            if res == "TIMEOUT":
+                results.append({
+                    "Circuit": circuit_name,
+                    "Nodes": "N/A",
+                    "Edges": "N/A",
+                    "Rare Signals": 0,
+                    "Vectors Generated": 0,
+                    "Time (Seconds)": "TIMEOUT"
+                })
+            elif len(res) == 0:
                 print(f"Failed to generate vectors for {circuit_name}")
-                # We add a failed row so it still shows up in your table
                 results.append({
                     "Circuit": circuit_name,
                     "Nodes": "N/A",
@@ -56,26 +96,24 @@ def run_experiments():
                     "Vectors Generated": 0,
                     "Time (Seconds)": "Failed"
                 })
-                continue
-                
-            results.append({
-                "Circuit": circuit_name,
-                "Nodes": res["nodes"],
-                "Edges": res["edges"],
-                "Rare Signals": res["rare_signals"],
-                "Vectors Generated": res["vectors_generated"],
-                "Time (Seconds)": round(res["time_seconds"], 2)
-            })
+            else:
+                results.append({
+                    "Circuit": circuit_name,
+                    "Nodes": res["nodes"],
+                    "Edges": res["edges"],
+                    "Rare Signals": res["rare_signals"],
+                    "Vectors Generated": res["vectors_generated"],
+                    "Time (Seconds)": round(res["time_seconds"], 2)
+                })
+            
+            df = pd.DataFrame(results)
+            df.to_csv(csv_file, index=False)
+            
         except Exception as e:
             print(f"Error running {circuit_name}: {e}")
-            
-    # Save to CSV
+
     if results:
-        df = pd.DataFrame(results)
-        csv_path = "tarmac_results.csv"
-        df.to_csv(csv_path, index=False)
-        print(f"\nSuccessfully saved results to {csv_path}!")
-        print(df.to_string())
+        print(f"\nSuccessfully updated results in {csv_file}!")
     else:
         print("\nNo results generated.")
 
