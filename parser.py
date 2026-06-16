@@ -95,26 +95,67 @@ class NetlistGraphBuilder:
                         # Map Ports
                         sub_mod = self.modules[mod_name]
                         port_dirs = {}
+                        formal_ports = []
                         if hasattr(sub_mod, 'portlist') and sub_mod.portlist:
                             for p in sub_mod.portlist.ports:
                                 if type(p).__name__ == 'Ioport':
                                     port_dirs[p.first.name] = type(p.first).__name__
+                                    formal_ports.append(p.first.name)
+                                elif type(p).__name__ == 'Port':
+                                    formal_ports.append(p.name)
                                     
+                        # Extract directions for Non-ANSI style
+                        for item in sub_mod.items:
+                            if type(item).__name__ == 'Decl':
+                                for decl in item.list:
+                                    decl_type = type(decl).__name__
+                                    if decl_type in ['Input', 'Output', 'Inout']:
+                                        port_dirs[decl.name] = decl_type
+                                    
+                        for port_idx, portarg in enumerate(instance.portlist):
+                            port_name = portarg.portname
+                            if not port_name and port_idx < len(formal_ports):
+                                port_name = formal_ports[port_idx]
+                                
+                            if port_name:
+                                sub_node = f"{new_prefix}{port_name}"
+                                arg_ids = self._get_identifiers(portarg.argname)
+                                
+                                p_dir = port_dirs.get(port_name, 'unknown')
+                                for arg_id in arg_ids:
+                                    wire_node = f"{instance_prefix}{arg_id}"
+                                    if p_dir == 'Input':
+                                        self.graph.add_edge(wire_node, sub_node, wire=wire_node)
+                                    elif p_dir == 'Output':
+                                        self.graph.add_edge(sub_node, wire_node, wire=wire_node)
+                                    else:
+                                        self.graph.add_edge(wire_node, sub_node, wire=wire_node)
+                                        self.graph.add_edge(sub_node, wire_node, wire=wire_node)
+                    
+                    else:
+                        # Unknown module or standard cell
+                        gate_node = f"{instance_prefix}{inst_name}"
+                        self.graph.add_node(gate_node, type=mod_name.upper())
+                        
                         for portarg in instance.portlist:
                             port_name = portarg.portname
                             if port_name:
-                                sub_node = f"{new_prefix}{port_name}"
-                                arg_name = portarg.argname.name if hasattr(portarg.argname, 'name') else str(portarg.argname)
-                                wire_node = f"{instance_prefix}{arg_name}"
+                                arg_ids = self._get_identifiers(portarg.argname)
+                                p_dir = 'unknown'
+                                if port_name in ['Y', 'Q', 'QN', 'Z', 'OUT', 'DOUT']:
+                                    p_dir = 'Output'
+                                elif port_name in ['A', 'B', 'C', 'D', 'E', 'F', 'S', 'S0', 'S1', 'CK', 'CLK', 'D0', 'D1', 'A0', 'A1', 'B0', 'B1', 'C0', 'C1', 'SI', 'SE', 'SN', 'RN']:
+                                    p_dir = 'Input'
                                 
-                                p_dir = port_dirs.get(port_name, 'unknown')
-                                if p_dir == 'Input':
-                                    self.graph.add_edge(wire_node, sub_node, wire=wire_node)
-                                elif p_dir == 'Output':
-                                    self.graph.add_edge(sub_node, wire_node, wire=wire_node)
-                                else:
-                                    self.graph.add_edge(wire_node, sub_node, wire=wire_node)
-                                    self.graph.add_edge(sub_node, wire_node, wire=wire_node)
+                                for arg_id in arg_ids:
+                                    wire_node = f"{instance_prefix}{arg_id}"
+                                    if p_dir == 'Input':
+                                        self.graph.add_edge(wire_node, gate_node, wire=wire_node)
+                                    elif p_dir == 'Output':
+                                        self.graph.add_edge(gate_node, wire_node, wire=wire_node)
+                                    else:
+                                        self.graph.add_edge(wire_node, gate_node, wire=wire_node)
+                                        self.graph.add_edge(gate_node, wire_node, wire=wire_node)
 
             # Behavioral Assignments (Assign)
             elif item_type == 'Assign':
@@ -129,6 +170,12 @@ class NetlistGraphBuilder:
 
             # Behavioral Always Blocks
             elif item_type == 'Always':
+                # Extract sensitivity list variables (like sys_clk, sys_rst_l)
+                sens_ids = []
+                if hasattr(item, 'sens_list'):
+                    for sens in item.sens_list.list:
+                        sens_ids.extend(self._get_identifiers(sens.sig))
+                        
                 def extract_assignments(node, current_conds=[]):
                     assignments = []
                     node_type = type(node).__name__
@@ -150,8 +197,8 @@ class NetlistGraphBuilder:
                 assigns = extract_assignments(item.statement)
                 for assign, cond_ids in assigns:
                     lhs_ids = self._get_identifiers(assign.left.var)
-                    # The right hand side includes the actual RHS *plus* any control-flow conditions
-                    rhs_ids = self._get_identifiers(assign.right.var) + cond_ids
+                    # The right hand side includes the actual RHS *plus* conditions *plus* sensitivity list
+                    rhs_ids = self._get_identifiers(assign.right.var) + cond_ids + sens_ids
                     
                     for lhs in lhs_ids:
                         lhs_node = f"{instance_prefix}{lhs}"
