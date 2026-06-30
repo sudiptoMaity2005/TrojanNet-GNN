@@ -1,22 +1,16 @@
 # ==============================================================================
 # COPY THIS ENTIRE SCRIPT INTO A GOOGLE COLAB NOTEBOOK CELL AND RUN IT
-# FOR THE FINAL ML BENCHMARK EVALUATION TABLE
+# FOR THE PHASE 2 GGNN BENCHMARK EVALUATION TABLE
 # ==============================================================================
 
-# 1. Install PyTorch Geometric
 import os
 import sys
 
-try:
-    import torch_geometric
-except ImportError:
-    print("Installing PyTorch Geometric. This might take a minute...")
-    os.system("pip install torch_geometric")
-    import torch_geometric
+import torch_geometric
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GatedGraphConv
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 import pandas as pd
@@ -70,45 +64,41 @@ def load_pyg_dataset(csv_path, edge_csv_path):
 # 3. Model Definition & Training
 # ==============================================================================
 
-from torch_geometric.nn import SAGEConv
-
-class AdvancedGNN(torch.nn.Module):
+class HybridGGNN(torch.nn.Module):
     def __init__(self, num_features):
-        super(AdvancedGNN, self).__init__()
-        # GraphSAGE with an MLP Head for deeper boundary learning
-        self.conv1 = SAGEConv(num_features, 64)
-        self.bn1 = torch.nn.BatchNorm1d(64)
+        super(HybridGGNN, self).__init__()
         
-        self.conv2 = SAGEConv(64, 64)
-        self.bn2 = torch.nn.BatchNorm1d(64)
+        # 1. Linear Embedding Layer
+        # GatedGraphConv requires the input feature dimension to match the output dimension
+        # because the GRU hidden state is initialized with the input features.
+        self.embedding = torch.nn.Linear(num_features, 64)
         
-        self.conv3 = SAGEConv(64, 32)
-        self.bn3 = torch.nn.BatchNorm1d(32)
+        # 2. The Hybrid RNN/GNN Layer
+        # out_channels=64, num_layers=4 means the GRU will unroll for 4 temporal steps
+        self.ggnn = GatedGraphConv(out_channels=64, num_layers=4)
+        self.bn = torch.nn.BatchNorm1d(64)
         
-        # 2-Layer MLP Head
-        self.fc1 = torch.nn.Linear(32, 16)
-        self.fc2 = torch.nn.Linear(16, 2)
+        # 3. 2-Layer MLP Head
+        self.fc1 = torch.nn.Linear(64, 32)
+        self.fc2 = torch.nn.Linear(32, 2)
 
     def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index)
-        x = self.bn1(x)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.2, training=self.training)
+        # Step 1: Expand 8 raw features to 64-dimensional memory state
+        h = self.embedding(x)
+        h = F.relu(h)
         
-        x = self.conv2(x, edge_index)
-        x = self.bn2(x)
-        x = F.relu(x)
-        x = F.dropout(x, p=0.2, training=self.training)
+        # Step 2: Pass through GGNN (Spatial topology + Temporal GRU memory steps)
+        h = self.ggnn(h, edge_index)
+        h = self.bn(h)
+        h = F.relu(h)
+        h = F.dropout(h, p=0.2, training=self.training)
         
-        x = self.conv3(x, edge_index)
-        x = self.bn3(x)
-        x = F.relu(x)
-        
-        # MLP Head
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        return x
+        # Step 3: Classify using MLP
+        out = self.fc1(h)
+        out = F.relu(out)
+        out = self.fc2(out)
+        return out
+
 class FocalLoss(torch.nn.Module):
     def __init__(self, alpha=None, gamma=2.0):
         super(FocalLoss, self).__init__()
@@ -126,11 +116,10 @@ class FocalLoss(torch.nn.Module):
             
         return F_loss.mean()
 
-def train_gnn(train_graphs):
+def train_ggnn(train_graphs):
     loader = DataLoader(train_graphs, batch_size=8, shuffle=True)
     
-    model = AdvancedGNN(num_features=8).to(device)
-    # Using a learning rate scheduler could help, but we'll stick to Adam with a smaller LR
+    model = HybridGGNN(num_features=8).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=1e-4)
     
     # Calculate class weights for highly imbalanced Trojan dataset
@@ -138,17 +127,15 @@ def train_gnn(train_graphs):
     total_positives = sum([g.y.sum().item() for g in train_graphs])
     total_negatives = total_nodes - total_positives
     
-    # Using Logarithmic Weight Scaling to handle extreme class imbalances smoothly
+    # Using Logarithmic Weight Scaling
     weight_0 = 1.0
     weight_1 = np.log1p(total_negatives / max(total_positives, 1)) * 3.0
     weight_1 = min(weight_1, 20.0) # Soft cap
     
     class_weights = torch.tensor([weight_0, weight_1], dtype=torch.float).to(device)
-    
-    # Reverted to industry standard gamma=2.0 for robust Focal Loss
     criterion = FocalLoss(alpha=class_weights, gamma=2.0)
     
-    print(f"\n--- Training Robust GraphSAGE with MLP on {len(train_graphs)} graphs ---")
+    print(f"\n--- Training Hybrid GGNN on {len(train_graphs)} graphs ---")
     print(f"Dataset Imbalance: {total_negatives} Clean vs {total_positives} Trojans")
     print(f"Applying Logarithmic Class Weights: Class 0: {weight_0:.2f}, Class 1: {weight_1:.2f}")
     
@@ -181,7 +168,6 @@ if __name__ == "__main__":
 
     print("Loading Datasets...")
     
-    # Dictionary to hold train and test graphs per circuit family
     circuit_families = {}
     
     for size in sizes:
@@ -208,20 +194,19 @@ if __name__ == "__main__":
                 circuit_families[circ_name]['test'].append(load_pyg_dataset(n_csv, e_csv))
 
     print("\n==================================================")
-    print("FINAL EVALUATION TABLE (CROSS-FAMILY / GLOBAL MODEL)")
+    print("FINAL EVALUATION TABLE (GGNN HYBRID MODEL)")
     print("==================================================")
     print("| Circuit Size | Circuit Name | Node Count | Accuracy | Precision | Recall | F1-Score | Inference Time |")
     print("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
 
     csv_data = []
 
-    # NEW: Pool all training graphs into a single massive global dataset
     global_train_graphs = []
     for circ_name, data_dict in circuit_families.items():
         global_train_graphs.extend(data_dict['train'])
         
-    print(f"\n[GLOBAL TRAINING] Training a single master model on {len(global_train_graphs)} total graphs...")
-    global_model = train_gnn(global_train_graphs)
+    print(f"\n[GLOBAL TRAINING] Training a single master GGNN on {len(global_train_graphs)} total graphs...")
+    global_model = train_ggnn(global_train_graphs)
     global_model.eval()
 
     for circ_name, data_dict in circuit_families.items():
@@ -274,8 +259,8 @@ if __name__ == "__main__":
 
     # Save to CSV
     results_df = pd.DataFrame(csv_data)
-    results_df.to_csv('evaluation_results.csv', index=False)
+    results_df.to_csv('evaluation_results_ggnn.csv', index=False)
     
     print("\nEVALUATION COMPLETE.")
-    print("The table has also been saved to 'evaluation_results.csv'.")
+    print("The table has also been saved to 'evaluation_results_ggnn.csv'.")
     print("You can download the CSV from the 'Files' tab on the left in Colab!")

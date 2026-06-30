@@ -14,3 +14,8 @@ parsetab.py
 
 # Auto-generated graph images
 graph.png
+*.zip
+*.csv
+*.pt
+*datasets*/
+*circuit/

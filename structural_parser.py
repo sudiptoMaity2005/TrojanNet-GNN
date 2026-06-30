@@ -69,8 +69,7 @@ class NetlistGraphBuilder:
             # Structural Instantiations (Gates or Sub-modules)
             if item_type == 'InstanceList':
                 mod_name = item.module
-                clean_name = mod_name.lower().replace('$_', '').replace('_', '')
-                is_gate = clean_name in ['and', 'nand', 'or', 'nor', 'xor', 'xnor', 'not']
+                is_gate = mod_name.lower() in ['and', 'nand', 'or', 'nor', 'xor', 'xnor', 'not']
                 
                 for instance in item.instances:
                     inst_name = instance.name
@@ -78,7 +77,7 @@ class NetlistGraphBuilder:
                     
                     if is_gate:
                         gate_node = f"{instance_prefix}{inst_name}"
-                        self.graph.add_node(gate_node, type=clean_name.upper())
+                        self.graph.add_node(gate_node, type=mod_name.upper())
                         
                         if len(instance.portlist) > 0:
                             out_port = instance.portlist[0].argname
@@ -209,10 +208,23 @@ class NetlistGraphBuilder:
                             self.graph.add_edge(rhs_node, lhs_node, wire=rhs_node)
 
     def extract_features(self):
-        gate_types = ['INPUT', 'OUTPUT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR', 'NOT', 'BEHAVIORAL', 'UNKNOWN']
+        gate_types = ['INPUT', 'OUTPUT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR', 'NOT', 'DFF', 'BUF', 'BEHAVIORAL', 'UNKNOWN']
         for node in self.graph.nodes():
-            n_type = self.graph.nodes[node].get('type', 'UNKNOWN')
-            one_hot = [1.0 if n_type == gt else 0.0 for gt in gate_types]
+            n_type = self.graph.nodes[node].get('type', 'UNKNOWN').upper()
+            
+            normalized_type = 'UNKNOWN'
+            if 'NND' in n_type or 'NAND' in n_type: normalized_type = 'NAND'
+            elif 'AND' in n_type: normalized_type = 'AND'
+            elif 'NOR' in n_type or 'NR' in n_type: normalized_type = 'NOR'
+            elif 'OR' in n_type: normalized_type = 'OR'
+            elif 'XNOR' in n_type: normalized_type = 'XNOR'
+            elif 'XOR' in n_type: normalized_type = 'XOR'
+            elif 'INV' in n_type or 'NOT' in n_type: normalized_type = 'NOT'
+            elif 'DFF' in n_type or 'SDFF' in n_type: normalized_type = 'DFF'
+            elif 'BUF' in n_type: normalized_type = 'BUF'
+            elif n_type in ['INPUT', 'OUTPUT', 'BEHAVIORAL']: normalized_type = n_type
+            
+            one_hot = [1.0 if normalized_type == gt else 0.0 for gt in gate_types]
             in_deg = float(self.graph.in_degree(node))
             out_deg = float(self.graph.out_degree(node))
             feat = one_hot + [in_deg, out_deg]

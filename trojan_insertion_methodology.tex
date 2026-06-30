@@ -1,0 +1,49 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{amsmath}
+
+\title{\textbf{Methodology: Simulating Stealthy RL-Based Hardware Trojans}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction to the Attack Model}
+To rigorously evaluate the robustness of our TrojanNet-GNN detection pipeline, we required an attack model capable of generating highly stealthy, defense-evading hardware Trojans. Traditional benchmark Trojans often rely on arbitrary or random structural additions, which modern Machine Learning (ML) algorithms can easily identify. 
+
+To challenge our pipeline, we developed a simulated attacker methodology that mimics the behavior of Reinforcement Learning (RL) agents. The primary objective of this method is to embed Trojan trigger and payload logic deep within a circuit in a way that perfectly blends with the surrounding benign cryptographic logic.
+
+\section{Insertion Methodology}
+The simulated insertion process operates through a behavioral profiling and topological embedding phase, consisting of the following steps:
+
+\subsection{Phase 1: Circuit Profiling and State Analysis}
+A stealthy hardware Trojan must remain dormant during normal operation to evade functional testing. Therefore, the trigger must rely on extremely rare internal states. 
+\begin{enumerate}
+    \item \textbf{Vector Simulation:} We simulate thousands of random input vectors through the synthesized, flattened gate-level netlist of the target circuit (e.g., AES-128).
+    \item \textbf{Probability Calculation:} For every internal node, we calculate the Signal Probability (SP) and Transition Probability (TP). The algorithm specifically searches for nodes where $TP \approx 0.003$ and $SP$ heavily skews toward either $0.0$ or $1.0$.
+\end{enumerate}
+
+\subsection{Phase 2: Trigger Construction}
+Once the absolute rarest nodes are identified, the algorithm constructs the malicious trigger logic:
+\begin{enumerate}
+    \item \textbf{Node Selection:} The top $K$ rarest internal wires are selected as the inputs to the Trojan trigger.
+    \item \textbf{Logic Inversion:} Because these wires almost never transition, their normal state is static. If a wire's normal SP is near $1.0$, the algorithm inserts a \texttt{NOT} gate to invert it.
+    \item \textbf{Trigger Activation:} The inputs (or their inverted signals) are routed into a cascading \texttt{AND} gate structure. This ensures the final trigger signal only fires ($=1$) when all $K$ rare nodes simultaneously enter their highly improbable state. 
+\end{enumerate}
+
+\subsection{Phase 3: Payload Injection}
+With a stealthy trigger established, the algorithm hijacks a critical data path to deploy the payload:
+\begin{enumerate}
+    \item \textbf{Target Selection:} A critical internal wire (the target) that acts as an input to downstream gates is selected.
+    \item \textbf{Bit Flipping:} An \texttt{XOR} gate is inserted between the target wire and its downstream connections. 
+    \item \textbf{Routing:} The output of the \texttt{AND} trigger is connected to the second input of the \texttt{XOR} gate. Under normal conditions (trigger $=0$), the \texttt{XOR} gate passes the target wire's original signal unmodified. When the trigger activates (trigger $=1$), the \texttt{XOR} gate flips the bit, corrupting the circuit's downstream logic.
+\end{enumerate}
+
+\section{Adversarial Testing Rationale}
+By mathematically selecting the rarest transition states, this methodology produces a Trojan that is almost impossible to activate by chance. Furthermore, because the trigger relies on existing logic paths rather than massive structural additions, the Trojan's feature embeddings (e.g., Fan-In, Fan-Out, localized depth) mimic normal logic. This provides a worst-case adversarial benchmark to evaluate the true sensitivity of our Graph Neural Network feature extractor.
+
+\end{document}

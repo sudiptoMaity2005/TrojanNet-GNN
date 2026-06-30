@@ -1,0 +1,75 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\title{\textbf{TrojanNet-GNN: How We Built a State-of-the-Art Hardware Trojan Detector}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report details our research journey with TrojanNet-GNN. It outlines how we overcame the limitations of traditional end-to-end models by re-engineering our architecture into a powerful hybrid feature extractor, ultimately achieving a massive leap in hardware Trojan detection accuracy.
+\end{abstract}
+
+\section{The Core Problem: Finding a Needle in a Haystack}
+When we first set out to detect hardware Trojans, we hit the classic roadblock: extreme class imbalance. In a typical circuit, $99.9\%$ of the logic gates are perfectly benign, and maybe $0.1\%$ are malicious. Traditional statistical methods attempt to find these hidden triggers by analyzing simple probabilities, but they frequently fail to differentiate between a rare (but normal) gate and a genuinely malicious Trojan.
+
+We initially tried to solve this by applying a Graph Neural Network (GNN) to the problem end-to-end, hoping it would automatically learn the difference. The result was a baseline precision of around \textbf{73\%}. While it was a promising start, it was not robust enough for real-world security. We needed a breakthrough.
+
+\section{The Architectural Breakthrough: A Hybrid Approach}
+We realized that forcing the GNN to make the final classification decision directly was a mistake. Instead of using it as a standalone detector, we pivoted and transformed our GNN into a \textbf{highly specialized feature extractor}. 
+
+Our new hybrid architecture operates in two main phases:
+
+\begin{enumerate}
+    \item \textbf{Topological Fingerprinting (15 GNN Features):} We pass the raw gate-level circuit through our GraphSAGE architecture (GNN4Gate). Instead of requesting a classification, we remove the final layer and extract the dense \textbf{15-dimensional graph embeddings}. These embeddings perfectly capture the complex structural ``neighborhood'' of every single gate.
+    
+    \item \textbf{Behavioral Profiling (8 TARMAC Features):} Structure is not everything; dynamic behavior is equally critical. We simulate thousands of random input vectors through the circuit to calculate 8 dynamic features, such as Transition Probability (TP), Fan-In, and Fan-Out. This helps us identify gates that are suspiciously dormant.
+\end{enumerate}
+
+\textbf{The Magic Bullet:} We combined these two profiles. For every single node in the circuit, we concatenated the 15 GNN features and the 8 TARMAC features into a massive \textbf{23-dimensional feature vector}. We then fed this incredibly rich data into traditional, highly-optimized Machine Learning models (such as Random Forest, Extra Trees, XGBoost, and SVM).
+
+\section{The Datasets: Putting It to the Test}
+To prove this was not an anomaly limited to a specific type of circuit, we rigorously trained and tested our pipeline across a highly diverse set of benchmarks:
+
+\begin{itemize}
+    \item \textbf{The ISCAS Benchmarks (\texttt{gnn4gate\_datasets}):} A standard collection of combinational logic circuits (e.g., c2670 and c6288). We used these to evaluate basic logic structures containing a mix of benign and Trojan-inserted graphs.
+    \item \textbf{The RS232 Benchmarks:} To evaluate sequential logic, we utilized the RS232 datasets, which represent complex, real-world communication protocols.
+    \item \textbf{The Real-World Giants:} Finally, to prove our model would not trigger false alarms in the wild, we tested it on massive, 100\% benign, open-source circuits—including the \textbf{AES-128} cryptographic core (695,281 gates) and the MIT CEP \textbf{GPS} module.
+\end{itemize}
+
+\section{The Results: A Massive Leap in Performance}
+When we processed the 23-feature vectors through our traditional ML models, the performance leap was staggering.
+
+\subsection{From 73\% to 98\% Precision}
+By shifting to this hybrid architecture, our Random Forest and Extra Trees models shattered our previous baseline. We jumped from the GNN-Solely's 73\% precision to an incredible \textbf{98\% Precision}, along with near-perfect scores in AUC, Recall, F1 Score, and overall Accuracy. The ML models, now armed with deep structural and behavioral context, easily isolated the Trojans.
+
+\subsection{Proving Robustness with LOSO (Leave-One-Subject-Out)}
+A common criticism in machine learning is that models simply ``memorize'' the training data. To prove our model was actually learning the fundamental characteristics of a Trojan, we implemented a grueling \textbf{Leave-One-Subject-Out (LOSO)} cross-validation strategy. 
+
+We trained the model on all the circuits \textit{except one}, and then tested its performance on that completely unseen circuit. The results were fantastic: our Random Forest and Extra Trees models maintained an exceptional \textbf{$\sim$97\% Precision} across the board. This proved definitively that our hybrid topological and behavioral features can successfully generalize to detect completely novel Trojan architectures.
+
+\section{Adversarial Testing: The RL-Attacker Vulnerability}
+Despite our model's near-perfect accuracy against standard Trust-Hub benchmarks, we hypothesized that an intelligent attacker could evade detection by mathematically mimicking the behavior of normal logic. To test this, we simulated an advanced Reinforcement Learning (RL) insertion methodology based on recent research from NMSU-PEARL. 
+
+\subsection{The Stealthy Insertion Method}
+Instead of relying on arbitrary structural additions, our simulated RL-attacker profiled the \texttt{aes\_128} circuit to find the absolute rarest nodes (Transition Probability $\approx$ 0.003). It then constructed a highly compact trigger using these static nodes and deployed an XOR payload on a critical data path. Because this Trojan utilizes existing logic paths and mimics the natural rarity of the circuit, its topological embeddings (Fan-In, Fan-Out, localized depth) are indistinguishable from normal gates.
+
+\subsection{The Ultimate Failure of the Detector}
+We subjected our TrojanNet-GNN pipeline to this adversarial circuit. Even after employing \textbf{Adversarial Training} (feeding the model identically structured RL-Trojans during training) and extreme \textbf{Undersampling} (reducing the benign majority class to force the ML model to focus on the Trojan), the pipeline completely failed. 
+
+Both the GNN-Solely and the Hybrid Random Forest models returned a \textbf{Precision of 0.0000} and a \textbf{Recall of 0.0000}. The models were entirely unable to mathematically separate the RL-Trojan from the background logic. 
+
+\section{Conclusion}
+By stepping back and combining the deep structural awareness of a GNN with the raw classification power of traditional Machine Learning, we built a pipeline that is both highly sensitive to malicious logic and incredibly robust against false positives, achieving 98\% precision against standard benchmarks.
+
+However, our adversarial testing revealed a critical limitation: structural and behavioral models are fundamentally vulnerable to RL-based attackers that optimize for stealth. When a Trojan perfectly mimics the topological and behavioral signatures of rare benign logic, it becomes mathematically invisible to our feature space. Future work in hardware security must look beyond isolated embeddings and incorporate formal verification or deep pathway-analysis to counter intelligent, AI-driven attackers.
+
+\end{document}

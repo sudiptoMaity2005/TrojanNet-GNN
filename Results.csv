@@ -1,6 +1,0 @@
-Circuit,GCN Accuracy,GCN Precision,GCN Recall,GCN F1 Score,GAT Accuracy,GAT Precision,GAT Recall,GAT F1 Score,GCN Autoencoder Accuracy,GCN Autoencoder Precision,GCN Autoencoder Recall,GCN Autoencoder F1 Score,GAT Autoencoder Accuracy,GAT Autoencoder Precision,GAT Autoencoder Recall,GAT Autoencoder F1 Score,MLP Autoencoder Accuracy,MLP Autoencoder Precision,MLP Autoencoder Recall,MLP Autoencoder F1 Score
-RS232 (Train/Test Node Split),,,,,,,,,,,,,,,,,,,,
-RS232 With new unseen circuits,0.9775,0.9788,0.9987,0.9886,0.9919,0.9952,0.9965,0.9959,0.9086,0.9971,0.9091,0.9511,0.5048,0.9878,0.4993,0.6634,0.0674,0.8761,0.0529,0.0998
-AES (Train/Test Node Split),,,,,,,,,,,,,,,,,,,,
-AES With new unseen circuits,0.9971,0.7851,0.8482,0.8155,0.9980,0.8727,0.8571,0.8649,0.9511,0.1303,0.9643,0.2295,0.9528,0.0973,0.6339,0.1686,0.9560,0.1464,1.0000,0.2554
-Combined (RS232 + AES) unseen,0.9132,0.9578,0.6063,0.7425,0.9802,0.9680,0.9349,0.9511,0.8442,0.6927,0.4404,0.5385,0.8037,0.5562,0.2427,0.3379,0.8293,0.6947,0.3083,0.4271
