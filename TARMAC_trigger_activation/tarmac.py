@@ -251,10 +251,8 @@ def tarmac_test_generation(circuit_file, top_module, num_vectors=10, rare_thresh
     }
 
 if __name__ == "__main__":
-    # Test on one of the RS232 circuits
-    import glob
-    rs232_files = glob.glob("../rs232/trojans/T100/*.v")
-    if len(rs232_files) > 0:
-        tarmac_test_generation(rs232_files, top_module="uart", num_vectors=5, rare_threshold=0.2)
+    circuit = "benchmarks/TRIT-TC/c2670_T026/c2670_T026.v"
+    if os.path.exists(circuit):
+        tarmac_test_generation([circuit], top_module="c2670", num_vectors=5, rare_threshold=0.2)
     else:
-        print("RS232 files not found. Ensure you run from TARMAC_trigger_activation directory.")
+        print("c2670 file not found.")

@@ -25,7 +25,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 import pandas as pd
 
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
-from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
 from xgboost import XGBClassifier
 from catboost import CatBoostClassifier
 
@@ -42,6 +42,9 @@ def load_datasets_from_folder(folder_path):
         try:
             data = torch.load(pt_file, weights_only=False)
             if data.x.shape[0] > 0:
+                # Force strictly 8 Behavioral Features to match the RS232/AES datasets
+                if data.x.shape[1] > 8:
+                    data.x = data.x[:, -8:]
                 x_mean = data.x.mean(dim=0, keepdim=True)
                 x_std = data.x.std(dim=0, unbiased=False, keepdim=True) + 1e-8
                 data.x = (data.x - x_mean) / x_std
@@ -52,17 +55,19 @@ def load_datasets_from_folder(folder_path):
         except Exception as e:
             print(f"Failed to load {pt_file}: {e}")
             
-    # 2. Load .csv files (from previous RS232 / Pipeline outputs)
+    # 2. Load .csv files (from previous RS232 / AES Pipeline outputs)
     csv_node_files = glob.glob(os.path.join(folder_path, "**", "dataset_*.csv"), recursive=True)
     for node_csv in csv_node_files:
         try:
-            edge_csv = node_csv.replace("dataset_", "edges_").replace("rs232_output_datasets", "rs232_edges_datasets")
+            # Replace 'output' with 'edges' dynamically to support both rs232 and aes
+            edge_csv = node_csv.replace("dataset_", "edges_").replace("_output_datasets", "_edges_datasets")
             if not os.path.exists(edge_csv):
-                # Fallback check
-                alt_edge = os.path.join(os.path.dirname(node_csv).replace("rs232_output_datasets", "rs232_edges_datasets"), "edges_" + os.path.basename(node_csv).replace("dataset_", ""))
+                # Fallback check in case the parent dir name is slightly different
+                alt_edge = os.path.join(os.path.dirname(node_csv).replace("_output_datasets", "_edges_datasets"), "edges_" + os.path.basename(node_csv).replace("dataset_", ""))
                 if os.path.exists(alt_edge):
                     edge_csv = alt_edge
                 else:
+                    print(f"Skipping {node_csv}: Could not find edge file {edge_csv}")
                     continue
                     
             df_nodes = pd.read_csv(node_csv)
@@ -116,8 +121,6 @@ class FocalLoss(nn.Module):
         return focal_loss.mean()
 
 class GNN4GateHybrid(torch.nn.Module):
-    # Depending on what files you upload, features might be 23 or 8.
-    # We will dynamically set this below based on the first loaded graph.
     def __init__(self, in_channels, hidden_channels=64, out_channels=2):
         super(GNN4GateHybrid, self).__init__()
         self.embedding = torch.nn.Linear(in_channels, hidden_channels)
@@ -129,10 +132,13 @@ class GNN4GateHybrid(torch.nn.Module):
         self.conv3 = SAGEConv(hidden_channels, hidden_channels)
         self.bn3 = torch.nn.LayerNorm(hidden_channels)
         self.jk = JumpingKnowledge("max")
-        self.fc1 = torch.nn.Linear(hidden_channels, 32)
-        self.fc2 = torch.nn.Linear(32, out_channels)
+        # Generates the 15-D Topological Structural Features
+        self.fc1 = torch.nn.Linear(hidden_channels, 15)
+        # Final classification is done on the concatenated 23-D vector (8 + 15)
+        self.fc2 = torch.nn.Linear(in_channels + 15, out_channels)
 
     def forward(self, x, edge_index):
+        orig_x = x # Save the original 8-D behavioral features
         if self.training:
             noise = torch.randn_like(x) * 0.01 
             x = x + noise
@@ -148,16 +154,21 @@ class GNN4GateHybrid(torch.nn.Module):
         h3 = F.relu(self.bn3(h3))
         h3 = F.dropout(h3, p=0.2, training=self.training) + h2 
         h_jk = self.jk([h1, h2, h3])
-        out = F.relu(self.fc1(h_jk))
-        return self.fc2(out)
+        # 15-D Structural embedding
+        out_15d = F.relu(self.fc1(h_jk))
+        # Concatenate 8-D + 15-D = 23-D Hybrid Feature Vector
+        hybrid_23d = torch.cat([orig_x, out_15d], dim=1)
+        return self.fc2(hybrid_23d)
         
     def extract_embeddings(self, x, edge_index):
+        orig_x = x
         x = F.relu(self.bn_emb(self.embedding(x)))
         h1 = F.relu(self.bn1(self.conv1(x, edge_index))) + x
         h2 = F.relu(self.bn2(self.conv2(h1, edge_index))) + h1
         h3 = F.relu(self.bn3(self.conv3(h2, edge_index))) + h2
         h_jk = self.jk([h1, h2, h3])
-        return F.relu(self.fc1(h_jk))
+        out_15d = F.relu(self.fc1(h_jk))
+        return torch.cat([orig_x, out_15d], dim=1)
 
 
 if __name__ == "__main__":
@@ -240,9 +251,10 @@ if __name__ == "__main__":
     models = {
         "RandomForest": RandomForestClassifier(n_estimators=50, class_weight="balanced", n_jobs=-1, random_state=42),
         "ExtraTrees": ExtraTreesClassifier(n_estimators=50, class_weight="balanced", n_jobs=-1, random_state=42),
-        "SVM": SVC(class_weight="balanced", random_state=42),
-        "XGBoost": XGBClassifier(scale_pos_weight=class_weights[1].item(), use_label_encoder=False, eval_metric='logloss', random_state=42),
-        "CatBoost": CatBoostClassifier(auto_class_weights="Balanced", verbose=0, random_state=42)
+        # Using LinearSVC instead of standard SVC, because standard SVC is O(N^3) and takes hours on 100k+ nodes!
+        "SVM": LinearSVC(class_weight="balanced", random_state=42, dual=False),
+        "XGBoost": XGBClassifier(scale_pos_weight=class_weights[1].item(), use_label_encoder=False, eval_metric='logloss', random_state=42, n_jobs=-1),
+        "CatBoost": CatBoostClassifier(auto_class_weights="Balanced", verbose=0, random_state=42, thread_count=-1)
     }
     
     for name, model in models.items():

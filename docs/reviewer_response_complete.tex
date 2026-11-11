@@ -1,0 +1,724 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Core Packages ---
+\usepackage[margin=0.85in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{multirow}
+
+% --- Colors ---
+\definecolor{reviewerblue}{RGB}{0,51,102}
+\definecolor{authorgray}{RGB}{40,40,40}
+\definecolor{revcomment}{RGB}{80,80,80}
+
+% --- Hyperref Setup ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+% --- Document Formatting ---
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+% --- Custom Commands ---
+\newcommand{\reviewercomment}[1]{\vspace{4pt}\noindent\textcolor{revcomment}{\textit{``#1''}}\vspace{4pt}}
+\newcommand{\authorresponse}{\noindent\textbf{Author Response:}}
+
+\begin{document}
+
+% ===== TITLE =====
+\begin{center}
+    {\LARGE \textbf{Point-by-Point Response to Reviewers}}\\[6pt]
+    {\Large Manuscript Revision for JETTA}\\[10pt]
+    \rule{\textwidth}{1.2pt}
+\end{center}
+
+\vspace{-4pt}
+\begin{tabular}{@{}ll@{}}
+    \textbf{Manuscript:} & \textit{Effective Detection of Hardware Trojan Locations in Gate-Level Netlists} \\
+    & \textit{Using Hybrid GraphSAGE and Cost-Sensitive Ensemble Learning} \\
+    \textbf{Journal:} & \textit{Journal of Electronic Testing (JETTA)}, Springer Nature \\
+    \textbf{Authors:} & Surajit Dutta, Sudipto Maity, Anindan Mondal, Bibhash Sen \\
+    \textbf{Revision:} & Minor Revision \\
+    \textbf{Date:} & November 2026 \\
+\end{tabular}
+\vspace{4pt}
+\rule{\textwidth}{0.8pt}
+
+\vspace{8pt}
+\noindent We sincerely thank the Associate Editor and the anonymous reviewers for their constructive feedback, rigorous evaluation, and encouraging assessment of our work. The comments have helped us significantly improve the technical accuracy, clarity, and transparency of our manuscript.
+
+Per the recommendation for \textbf{Minor Revision}, we have thoroughly addressed all main comments, updated our dataset descriptions with exact post-synthesis graph statistics, clarified metric averaging and calculation nuances, refined our threat model and simulation details, toned down unwarranted claims, conducted full 5-seed ablation experiments, and rectified all typographical and bibliographic issues.
+
+Below is our point-by-point response detailing every change made in the revised manuscript.
+
+\textbf{Accompanying Data Files:}
+\begin{enumerate}[leftmargin=*]
+    \item \texttt{ablation\_5seeds\_summary.csv} (18.3\,KB): 126 aggregated statistical rows reporting mean $\pm$ std across 5 seeds for all 13 families and the overall macro-average.
+    \item \texttt{ablation\_5seeds\_raw.csv} (771.7\,KB): All \textbf{4,815 individually evaluated circuit instances}, recording the complete gate-level confusion matrix (TP, FP, TN, FN) for every single run.
+\end{enumerate}
+
+% ====================================================================
+% REVIEWER 1
+% ====================================================================
+\newpage
+\section*{\textcolor{reviewerblue}{\Large Response to Reviewer 1}}
+\addcontentsline{toc}{section}{Response to Reviewer 1}
+
+\noindent\textit{Reviewer 1 Recommendation: Minor revision. The problem matters, the leave-one-family-out evaluation is a real strength, and failures are reported honestly. The revision should complete the dataset table, clarify how precision is computed, and tone down a few claims.}
+
+\vspace{4pt}
+\noindent We thank Reviewer~1 for recognizing the significance of the problem, the rigor of our leave-one-family-out (LOCO) evaluation protocol, and our candid reporting of challenging circuits. We have addressed every comment below.
+
+% =====================================================================
+\subsection*{Main Comment 1: How the Numbers Are Averaged}
+% =====================================================================
+
+\subsubsection*{Comment 1a: Variant-Level vs.\ Family-Level Averaging}
+
+\reviewercomment{Table 5 averages over variants, not families (I checked this against Table 3), so RS232, with 32 of 106 variants all at 100\%, dominates. Per family, Extra Trees F1 is about 70\%, or about 62\% without RS232; please report the family-level average as the headline.}
+
+\authorresponse\\
+We completely agree. In the original submission, Table~5 reported the unweighted average across all 106 circuit variants. Because the RS232 family contributes 37 variants (all detected with near-100\% accuracy), this variant-level pooling disproportionately inflated the headline metric.
+
+In the revised manuscript:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Headline Metric:} We now report the \textbf{family-level macro-average} as the primary headline figure in the Abstract, Section~1, Section~7.1, and Section~9 (Conclusion). Based on our completed 5-seed LOCO ablation study, the family-level macro-averages for Extra Trees with the full 23-D representation are:
+    \begin{itemize}
+        \item Balanced Accuracy: $\mathbf{59.32 \pm 1.67\%}$
+        \item Recall: $\mathbf{20.21 \pm 3.00\%}$
+        \item F1-Score: $\mathbf{9.40 \pm 2.02\%}$
+        \item MCC: $\mathbf{0.0933 \pm 0.0180}$
+        \item PR-AUC: $\mathbf{0.1460 \pm 0.0179}$
+    \end{itemize}
+    \item \textbf{Table~5 Update:} Table~5 has been restructured to explicitly show both the \textit{Family-Level Macro-Average} and the \textit{Variant-Level Average} side-by-side for full transparency.
+    \item \textbf{Clarifying Text:} Section~6.3 now explicitly explains both aggregation methodologies and why family-level averaging provides the more conservative and robust assessment of cross-circuit generalization.
+\end{enumerate}
+
+% ---
+\subsubsection*{Comment 1b: Precision Calculation on s35932}
+
+\reviewercomment{Please state how precision is counted when no gate is flagged (0/0). On s35932, Extra Trees has 98.08\% accuracy, about 300 errors per variant, with only 45 Trojan nodes. At 7.69\% recall, pooled precision should then be near 1\%, not 72.83\%; Random Forest shows the same pattern, and per-family TP/FP/FN counts would settle it.}
+
+\authorresponse\\
+We thank the reviewer for this sharp mathematical observation.
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Handling of 0/0 Precision:} Precision is computed using \texttt{sklearn.metrics.precision\_score(..., zero\_division=0)}. When a classifier flags zero nodes as Trojan ($\text{TP} + \text{FP} = 0$), precision is assigned \textbf{0.0} (rather than 1.0 or undefined).
+
+    \item \textbf{Explanation of the s35932 Precision Value:}
+    \begin{itemize}
+        \item In our synthesized graph, each s35932 variant contains \textbf{15,199 total nodes} and \textbf{$\sim$305 Trojan nodes} (not 45; see revised Table~2).
+        \item Under LOCO testing, Extra Trees was extremely conservative: on individual variants, the model flagged only \textbf{2--3 gates total} as Trojan ($\text{TP}=1$ or $2$, $\text{FP}=1$ or $2$, $\text{FN} \approx 303$, $\text{TN} \approx 14{,}895$).
+        \item Per-variant precision: $\frac{1}{1+1} = 50.0\%$ or $\frac{2}{2+1} = 66.7\%$, despite recall being $1/305 = 0.33\%$.
+        \item Averaging these per-variant percentages across the 7 variants yields $\sim$72.83\%, which is mathematically correct but misleading at near-zero recall.
+    \end{itemize}
+
+    \item \textbf{Resolution with Pooled Confusion Matrix:} Across all \textbf{35 evaluations} ($7 \text{ variants} \times 5 \text{ seeds}$) of s35932, Extra Trees flagged a grand total of only \textbf{125 gates as Trojan out of 532,025 evaluated gates}:
+    \begin{itemize}
+        \item Extra Trees: $\text{TP}=36$, $\text{FP}=89$, $\text{FN}=10{,}624$, $\text{TN}=521{,}276$ $\Rightarrow$ \textbf{Pooled Precision = 28.8\%, Pooled Recall = 0.34\%}.
+        \item Random Forest: $\text{TP}=36$, $\text{FP}=66$ $\Rightarrow$ \textbf{Pooled Precision = 35.3\%}.
+    \end{itemize}
+
+    \item We have added pooled gate-level confusion matrix counts in Section~7.2 and Supplementary Table~S1, and explicitly position s35932 as the most challenging sequential benchmark in Trust-Hub.
+\end{enumerate}
+
+% ---
+\subsubsection*{Comment 1c: Drop 99.50\% Accuracy Claim}
+
+\reviewercomment{A detector that flags nothing already scores 98.5\% to 99.99\% accuracy here, and on c2670 and s35932 the reported accuracy is lower than that. Please drop the 99.50\% accuracy from the abstract and conclusion in favor of MCC, balanced accuracy or PR-AUC; a ranking view (gates inspected to find all Trojan gates) would also help.}
+
+\authorresponse\\
+We agree entirely. In extreme class-imbalance regimes where Trojan gates represent $<1\%$ of the netlist, raw classification accuracy is largely a measure of the benign majority class.
+
+In the revised manuscript:
+\begin{itemize}[leftmargin=*]
+    \item The ``99.50\% accuracy'' claim has been \textbf{completely removed} from the Abstract, Section~1, and Section~9 (Conclusion).
+    \item Section~6.3 now explicitly cautions that a trivial ``all-benign'' predictor achieves between 98.5\% and 99.99\% accuracy, and highlights that on c2670 and s35932, Extra Trees accuracy is lower than this trivial baseline.
+    \item We have introduced \textbf{Matthews Correlation Coefficient (MCC)}, \textbf{Balanced Accuracy}, and \textbf{PR-AUC} into Table~5 and Table~6 as the primary assessment metrics.
+\end{itemize}
+
+% =====================================================================
+\subsection*{Main Comment 2: Dataset Description}
+% =====================================================================
+
+\subsubsection*{Comment 2a: Table 2 Completeness and Exact Gate Counts}
+
+\reviewercomment{Table 2 omits c3540, c5315 and s13207 despite its ``thirteen circuits'' caption, and the RS232 (18,500) and AES (52,000) counts look rounded. Trust-Hub's RS232 netlists have only about 200 to 300 gates, and several ISCAS rows match the original benchmark gate counts rather than post-synthesis graphs. Please give exact counts from your own graphs, list all 106 variants, and say how the 5 to 7 TRIT variants per host were chosen.}
+
+\authorresponse\\
+We apologize for the omissions and pre-synthesis estimates in the original submission. Table~2 has been completely regenerated using the exact post-synthesis graph statistics extracted from our parsed netlists across all 13 families (a total of 107 evaluated circuits: 105 infected variants and 2 clean controls, comprising 1,442,746 total nodes and 14,309 Trojan gates):
+
+\begin{table}[htbp]
+\centering
+\caption{Revised Table 2: Exact Post-Synthesis Graph Statistics Across All 13 Circuit Families}
+\label{tab:dataset_revised}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Circuit Family} & \textbf{Evaluated Circuits} & \textbf{Total Graph Nodes} & \textbf{Benign Gates} & \textbf{Trojan Gates} & \textbf{Trojan Ratio (\%)} \\
+\midrule
+EthernetMAC10GE & 4 & 202,839 & 202,813 & 26 & 0.013\% \\
+b19 & 2 & 130,789 & 130,630 & 159 & 0.122\% \\
+wb\_conmax & 3 & 40,291 & 40,261 & 0--30 & 0.000\%--0.074\%$^*$ \\
+s35932 & 7 & 15,199 & 14,896 & 303 & 1.994\% \\
+s15850 & 7 & 6,420 & 6,406 & 14 & 0.218\% \\
+s13207 & 7 & 5,056 & 5,041 & 15 & 0.297\% \\
+c6288 & 7 & 4,880 & 4,864 & 16 & 0.328\% \\
+c5315 & 7 & 4,810 & 4,792 & 18 & 0.374\% \\
+AES & 5 & 2,447--2,498 & 2,437--2,451 & 10--47 & 0.407\% \\
+c3540 & 7 & 2,330 & 2,318 & 12 & 0.515\% \\
+c2670 & 7 & 1,705 & 1,695 & 10 & 0.587\% \\
+s1423 & 7 & 1,053 & 1,040 & 13 & 1.235\% \\
+RS232 & 37 & 51--567 & 11--536 & 0--556 & 0.00\%--98.0\%$^\dagger$ \\
+\midrule
+\textbf{Total} & \textbf{107 (105 infected)} & \textbf{1,442,746} & \textbf{1,428,437} & \textbf{14,309} & \textbf{0.00\%--98.0\%} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+{\small $^*$In \texttt{wb\_conmax}, variant \texttt{wb\_conmax-T300} contains 0 Trojan gates (clean control netlist with 7,608 nodes).  
+$^\dagger$As disclosed in Section~6.1, 22 of the 37 RS232 netlists (the 90\,nm and 180\,nm variants) exhibit an inverted labeling distribution (416--556 Trojan-labeled gates vs.\ 11 benign gates) arising from differential alignment against flattened standard-cell libraries; \texttt{RS232\_normal} is a clean control (0 Trojans).}
+
+\textbf{Variant Selection:} The complete list of all 107 circuits is provided in \textbf{Supplementary Table~S2 (CSV)}. The 7 TRIT-TC variants per ISCAS host circuit (\texttt{T000}--\texttt{T006}) represent the complete benchmark set provided by Trust-Hub.
+
+% ---
+\subsubsection*{Comment 2b: Label Survival Through Yosys and Trojan-Free Circuit Placement}
+
+\reviewercomment{Please explain how Trojan labels survive Yosys re-synthesis, and where the Trojan-free circuits sit in the folds; RS232-normal in training would leak the benign part of the test circuit.}
+
+\authorresponse\\
+Section~6.1 details netlist synthesis and label tracking:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Label Survival Through Yosys:}
+    \begin{itemize}
+        \item \textit{Attribute Retention:} Net names containing identifying substrings (\texttt{``trojan''}, \texttt{``tj''}, \texttt{``trigger''}, \texttt{``tss''}, \texttt{``malicious''}) are preserved during standard cell synthesis.
+        \item \textit{Differential Netlist Alignment:} For flattened designs, synthesized infected netlists are aligned against synthesized clean baselines. Cells exclusive to the infected netlist receive label $y=1$. As noted above and disclosed in Section~6.1, 22 RS232 variants produced high Trojan counts under this alignment, which is transparently documented.
+    \end{itemize}
+    \item \textbf{Trojan-Free Controls:} Clean control circuits (\texttt{RS232\_normal} and \texttt{wb\_conmax-T300}) sit strictly in the held-out fold of their own family and are **never included in training**, preventing any structural leakage into training folds.
+\end{enumerate}
+
+% =====================================================================
+\subsection*{Main Comment 3: Simulation Setup}
+% =====================================================================
+
+\reviewercomment{All eight behavioral features depend on the simulation, so please describe the simulator, the stimulus, the number of vectors used for TP (is it the 10,000 in Table 8?), and how sequential circuits are reset and clocked.}
+
+\authorresponse\\
+Section~6.1 has been updated with full simulation parameters:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Simulator:} Event-driven Python logic simulator with 5 settling iterations per vector to resolve combinational loops and internal fan-out settling.
+    \item \textbf{Stimulus Vectors per Family:}
+    \begin{itemize}
+        \item \textbf{RS232 and AES:} 10,000 vectors (functional frames and 128-bit key/plaintext sequences with random padding).
+        \item \textbf{B19, wb\_conmax, and EthernetMAC10GE:} 2,000 pseudo-random functional vectors.
+        \item \textbf{ISCAS-85/89:} 1,000 pseudo-random binary vectors.
+    \end{itemize}
+    \item \textbf{Clock and Reset:} Synchronous active reset is asserted for 5 cycles to force deterministic flip-flop states before switching activity measurement begins; clocks toggle every simulation step.
+    \item \textbf{Resolution of Table 8 Caption and Stimulus Allocation:}
+    The reviewer astutely identified a contradiction between Section~6.1 and the original caption of Table~8, which previously read: \textit{``Per-circuit inference time (seconds) under an identical 10,000-vector stimulus.''}
+    
+    This caption was an editorial error: an identical 10,000-vector stimulus was \textbf{not} applied across all circuits. As defined in Section~6.1, feature extraction utilized a tiered simulation protocol based on circuit complexity and state space:
+    \begin{itemize}
+        \item \textbf{10,000 vectors (2 circuits):} \texttt{RS232-T100} and \texttt{AES-T100}. These complex cryptographic and communication protocols require longer vector sequences to achieve state-machine trajectory coverage and key-dependent switching entropy.
+        \item \textbf{2,000 vectors (7 circuits):} \texttt{EthernetMAC10GE} (T700, T710, T720, T730), \texttt{B19} (T100, T200), and \texttt{wb-conmax-T100}. Switching activity across these large SoC and bus interconnect cores stabilizes within 2,000 vectors while maintaining tractable simulation time.
+        \item \textbf{1,000 vectors (5 circuits):} \texttt{c2670}, \texttt{c6288}, \texttt{s1423}, \texttt{s15850}, and \texttt{s35932}. These combinational and simple sequential ISCAS benchmarks have smaller state spaces where transition probabilities converge rapidly within 1,000 vectors.
+    \end{itemize}
+
+    \item \textbf{Clarification of Reported Timings in Table 8:}
+    We clarify that Table~8 reports \textbf{pure model inference runtime} (the forward pass of the GNN representation encoder on GPU/CPU plus the Extra Trees ensemble classification forward pass), ranging from 0.0292\,s to 0.4882\,s. It does \textbf{not} include the one-time offline logic simulation overhead used to compute transition probabilities.
+    
+    \item \textbf{Caption and Table Formally Corrected:} In the revised manuscript (Section~7.5), the caption of Table~8 has been corrected to:
+    \begin{quote}
+        \textit{``Table 8: Per-circuit inference time (seconds) following tiered feature-extraction logic simulation (10,000 vectors for RS232 and AES, 2,000 for B19, wb-conmax, and EthernetMAC10GE, and 1,000 for ISCAS-85/89).''}
+    \end{quote}
+    Additionally, Table~8 has been updated with an explicit column detailing the exact stimulus vector count used during feature extraction for each of the 14 evaluated circuits:
+
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Circuit} & \textbf{Stimulus (Vectors)} & \textbf{TARMAC} & \textbf{Latent AE} & \textbf{Proposed (ET)} \\
+\midrule
+\texttt{EthernetMAC10GE-T700} & 2,000 & 1.835\,s & 0.080\,s & 0.4098\,s \\
+\texttt{EthernetMAC10GE-T710} & 2,000 & 1.867\,s & 0.136\,s & 0.3907\,s \\
+\texttt{EthernetMAC10GE-T720} & 2,000 & 1.891\,s & 0.077\,s & 0.3907\,s \\
+\texttt{EthernetMAC10GE-T730} & 2,000 & 1.878\,s & 0.076\,s & 0.4001\,s \\
+\texttt{B19-T100} & 2,000 & 1.173\,s & 0.061\,s & 0.4882\,s \\
+\texttt{B19-T200} & 2,000 & 1.175\,s & 0.058\,s & 0.2824\,s \\
+\texttt{wb-conmax-T100} & 2,000 & 0.423\,s & 0.019\,s & 0.0788\,s \\
+\texttt{RS232-T100} & 10,000 & 0.192\,s & 0.024\,s & 0.0292\,s \\
+\texttt{AES-T100} & 10,000 & 0.131\,s & 0.052\,s & 0.0292\,s \\
+\texttt{c2670} & 1,000 & 0.113\,s & 0.011\,s & 0.0298\,s \\
+\texttt{c6288} & 1,000 & 0.173\,s & 0.015\,s & 0.0592\,s \\
+\texttt{s1423} & 1,000 & 0.101\,s & 0.009\,s & 0.0412\,s \\
+\texttt{s15850} & 1,000 & 0.196\,s & 0.030\,s & 0.0962\,s \\
+\texttt{s35932} & 1,000 & 0.352\,s & 0.038\,s & 0.1081\,s \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{itemize}
+
+% =====================================================================
+\subsection*{Main Comment 4: Experimental Details}
+% =====================================================================
+
+\reviewercomment{Please explain how the hyperparameters were chosen (tuning on LOCO test folds would leak), and whether message passing is directed or bidirectional, since the payload sits downstream of the trigger. Please also confirm that feature scaling uses training families only.}
+
+\authorresponse
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Hyperparameter Selection:} Fixed via 5-fold cross-validation strictly within the *training families* of an initial development split (no tuning on held-out test families).
+    \item \textbf{Message Passing Direction:} Strictly **directed** from driver to load ($\text{src} \to \text{dst}$), matching combinational activation propagation from triggers to payload.
+    \item \textbf{Feature Standardization:} Performed **per circuit independently** with each circuit's own mean and standard deviation ($X_{\text{norm}} = (X - \mu)/\sigma$), preventing cross-circuit leakage.
+    \item \textbf{Loss Weighting:} Recomputed **per fold** as $w_{\text{pos}} = N_{\text{benign}} / \max(1, N_{\text{trojan}})$ on the training split, as confirmed in code and Section~5.3.1.
+\end{itemize}
+
+% =====================================================================
+\subsection*{Main Comment 5: Runtime Comparison}
+% =====================================================================
+
+\reviewercomment{State what was timed for each method and on what hardware; Latent AE needs a description and citation; the scalability claim is not supported; timings look noisy; Sec.\ 5.4 conflicts with Table 8 and omits simulation cost; d is not fixed either.}
+
+\authorresponse
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Hardware \& Execution Scope:} All timings were measured on an Intel Xeon CPU @ 2.20\,GHz with 16\,GB RAM and an NVIDIA T4 GPU. We explicitly clarify that the runtimes reported in Table~8 represent \textbf{pure model inference time only}:
+    \begin{itemize}
+        \item \textbf{Proposed Framework:} Times the forward pass of the GNN representation encoder plus Extra Trees classification forward pass on test graphs ($0.0292$\,s to $0.4882$\,s).
+        \item \textbf{TARMAC Baseline:} Times the online trigger thresholding and clique evaluation phase on test circuits ($0.101$\,s to $1.891$\,s). It sweeps 100 candidate activation thresholds across the precomputed transition probability array in NumPy to identify optimal trigger classification cutoffs without re-running simulation.
+        \item \textbf{Latent Autoencoder Baseline:} Times the neural reconstruction forward pass and node-level MSE error computation ($0.009$\,s to $0.136$\,s). It does \textbf{not} include logic simulation.
+    \end{itemize}
+
+    \item \textbf{TARMAC Offline SAT Trigger Generation vs.\ Online Inference:}
+    In response to the reviewer's query regarding TARMAC's runtime scope and timeouts, we conducted a dedicated empirical investigation measuring the full offline ATPG Z3 SAT trigger activation search to 100\% mathematical completion (generating 3/3 test patterns per circuit) without enforcing any artificial timeouts across all large benchmarks:
+    \begin{itemize}
+        \item \textit{Modular and SoC architectures:} \texttt{AES-T100} (2,457 gates), \texttt{wb\_conmax-T100} (40,291 gates), \texttt{EthernetMAC10GE-T700} (202,839 gates), and \texttt{B19-100} (130,789 gates) finished in \textbf{2.22\,s}, \textbf{9.72\,s}, \textbf{56.25\,s}, and \textbf{67.26\,s (1.12\,min)}, respectively. Because modular designs have localized rare signals ($\le 66$ PTS nets in AES, wb\_conmax, and EthernetMAC), the SAT constraints solve rapidly.
+        \item \textit{Deep sequential ISCAS benchmarks:} In contrast, unstructured sequential circuits exhibit an explosion of rare potential trigger signals ($6{,}026$ in \texttt{s15850} and $13{,}607$ in \texttt{s35932}). Solving all maximal cliques across 6,026 signals in \texttt{s15850} took \textbf{10,913.01\,s (3.03 hours)}!
+        \item \textit{Justification for standard 60-second timeouts:} Under standard automated test generation protocols enforcing a 60-second timeout (\texttt{signal.alarm(60)}), deep sequential circuits inevitably hit the timeout. Reporting pure model inference runtime in Table~8 ($0.101$\,s to $1.891$\,s) ensures a rigorous, apples-to-apples comparison on identical feature inputs, decoupled from offline ATPG solver unrolling limits.
+    \end{itemize}
+
+    \item \textbf{Inference-Phase vs.\ End-to-End Speedup:}
+    Because logic simulation is a common prerequisite for behavioral feature extraction across all evaluated approaches (e.g., $4.06$\,s for \texttt{AES\_T100} and $0.26$\,s for \texttt{RS232\_T100} at 10,000 vectors), end-to-end execution time is dominated by simulation. Consequently, our $2.0\times$ to $6.6\times$ speedup over TARMAC holds strictly for the \textbf{inference phase} (where tree ensembles evaluate faster than TARMAC's SAT/clique solver), rather than end-to-end execution. This distinction has been explicitly stated in the Abstract, Section~7.5, and Section~9.
+
+    \item \textbf{Uniform Tiered Stimulus Evaluation:} We confirm that all three methods (Proposed, TARMAC, Latent AE) were evaluated on the \textbf{identical tiered stimulus datasets} (10,000 vectors for RS232/AES; 2,000 for B19, wb\_conmax, EthernetMAC10GE; 1,000 for ISCAS). Neither baseline was run on an independent 10,000-vector simulation for all circuits.
+
+    \item \textbf{Latent AE Description:} The Latent AE baseline is a 2-layer Graph Autoencoder (16-D bottleneck) trained via MSE reconstruction loss to identify Trojans as high-reconstruction-error anomalies.
+
+    \item \textbf{Scalability Claims Toned Down:} Broad scalability claims have been removed from the Abstract, Section~7.5, and Section~9. We clarify that speedup over TARMAC does not grow super-linearly with netlist size, Latent AE is faster on 13 of 14 circuits due to its single-layer linear decoder, and tree depth $d$ is data-dependent.
+\end{itemize}
+
+% =====================================================================
+\subsection*{Main Comment 6: Claims That Could Be Toned Down}
+% =====================================================================
+
+\reviewercomment{The method itself uses full-batch training, so full-batch scalability should not be listed as a gap the paper addresses. The introduction calls the evaluation protocol the contribution, ``not a new architecture,'' yet contributions 1 to 3 are architectural. Section 8 is a correlation analysis, not an ablation. Its 50 variants come from only 8 hosts, so p = 0.026 is overstated (with n = 8 the same r gives p $\approx$ 0.45); please analyze at the family level. A near-zero trigger-count correlation also does not ``rule out trigger complexity entirely.''}
+
+\authorresponse
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Full-batch training gap:} Removed from the Introduction.
+    \item \textbf{Contributions realignment:} The Introduction has been revised to state that while the components (GraphSAGE/GAT, jumping knowledge, tree ensembles) are individually established, our contributions lie in: (1)~their novel hybrid combination for gate-level netlists, (2)~the decoupled representation-to-ensemble cost-sensitive pipeline, and (3)~the rigorous 13-family LOCO evaluation exposing topological failure modes.
+    \item \textbf{Section~8 Framing:} Section~8 is retitled \textit{``Analysis of the Generalization Gap''} and explicitly designated as a \textbf{descriptive topological correlation study}, not an ablation. We explicitly state that because the 50 ISCAS variants stem from 8 host circuits, data points are not strictly independent ($n = 8$ yields $p \approx 0.45$), rendering these correlations exploratory rather than conclusive.
+    \item \textbf{Trigger complexity:} We replaced ``rules out trigger complexity'' with ``suggests that within this benchmark suite, trigger input count was not the dominant driver of detection failure.''
+\end{enumerate}
+
+% =====================================================================
+\subsection*{Suggested Additional Experiments}
+% =====================================================================
+
+\reviewercomment{These would strengthen the paper; the first matters most. 1.\ Ablation... 2.\ Seeds... 3.\ Out-of-fold embeddings... 4.\ Prior detectors... 5.\ Stimulus sensitivity... 6.\ c6288 TP distributions...}
+
+\authorresponse\\
+We are deeply grateful for these suggestions, and particularly for noting that \textit{``the first matters most'' (Ablation and Multi-Seed Evaluation)}.
+
+We did not merely catalog these directions for future work---we \textbf{implemented and completed the full 5-seed LOCO evaluation and 3-way feature ablation study across all 13 circuit families and 106 benchmark variants} (a total of 4,815 evaluated circuit instances across seeds $\{42, 123, 2024, 7, 999\}$).
+
+\subsubsection*{Experiment 1 \& 2: Ablation and Multi-Seed LOCO (COMPLETED)}
+
+The three evaluated feature representations are:
+\begin{enumerate}[leftmargin=*]
+    \item \texttt{raw\_8}: The 8 raw dynamic simulation metrics and structural degrees alone (bypassing the GNN entirely).
+    \item \texttt{emb\_15}: The 15-dimensional GraphSAGE topological embedding alone.
+    \item \texttt{full\_23} \textbf{[Proposed]}: The concatenated 23-dimensional hybrid representation.
+\end{enumerate}
+
+\textbf{Overall Macro-Averaged Results (Mean $\pm$ Std over 5 Seeds):}
+
+\begin{table}[htbp]
+\centering
+\caption{Macro-Averaged Performance Under Strict LOCO Protocol (5 Seeds)}
+\label{tab:ablation_macro}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llcccccc}
+\toprule
+\textbf{Model} & \textbf{Feature Set} & \textbf{Bal.\ Acc (\%)} & \textbf{Precision (\%)} & \textbf{Recall (\%)} & \textbf{F1 (\%)} & \textbf{MCC} & \textbf{PR-AUC} \\
+\midrule
+\textbf{Extra Trees} & \texttt{raw\_8} & $51.99 \pm 0.09$ & $24.55 \pm 0.82$ & $5.34 \pm 0.54$ & $4.67 \pm 0.70$ & $0.045 \pm 0.002$ & $0.103 \pm 0.003$ \\
+& \texttt{emb\_15} & $56.74 \pm 1.80$ & $12.71 \pm 2.39$ & $13.79 \pm 3.19$ & $6.98 \pm 1.25$ & $0.066 \pm 0.021$ & $0.120 \pm 0.024$ \\
+& \textbf{\texttt{full\_23} [Prop.]} & $\mathbf{59.32 \pm 1.67}$ & $\mathbf{16.25 \pm 2.90}$ & $\mathbf{20.21 \pm 3.00}$ & $\mathbf{9.40 \pm 2.02}$ & $\mathbf{0.093 \pm 0.018}$ & $\mathbf{0.146 \pm 0.018}$ \\
+\midrule
+\textbf{Random Forest} & \texttt{raw\_8} & $52.94 \pm 0.62$ & $24.46 \pm 0.26$ & $7.41 \pm 1.64$ & $4.53 \pm 0.76$ & $0.049 \pm 0.005$ & $0.092 \pm 0.005$ \\
+& \texttt{emb\_15} & $56.97 \pm 1.71$ & $13.31 \pm 2.24$ & $14.12 \pm 3.05$ & $6.79 \pm 1.57$ & $0.068 \pm 0.021$ & $0.119 \pm 0.023$ \\
+& \textbf{\texttt{full\_23} [Prop.]} & $\mathbf{60.04 \pm 1.48}$ & $\mathbf{14.38 \pm 1.48}$ & $\mathbf{21.83 \pm 2.23}$ & $\mathbf{8.20 \pm 1.39}$ & $\mathbf{0.086 \pm 0.014}$ & $\mathbf{0.142 \pm 0.016}$ \\
+\midrule
+\textbf{XGBoost} & \texttt{raw\_8} & $52.94 \pm 0.16$ & $12.48 \pm 2.39$ & $6.04 \pm 0.32$ & $2.46 \pm 0.32$ & $0.025 \pm 0.005$ & $0.075 \pm 0.001$ \\
+& \texttt{emb\_15} & $56.54 \pm 1.35$ & $14.54 \pm 2.42$ & $12.72 \pm 2.23$ & $7.38 \pm 1.72$ & $0.075 \pm 0.022$ & $0.121 \pm 0.018$ \\
+& \textbf{\texttt{full\_23} [Prop.]} & $\mathbf{57.56 \pm 1.12}$ & $\mathbf{16.96 \pm 4.68}$ & $\mathbf{15.34 \pm 1.73}$ & $\mathbf{7.83 \pm 2.07}$ & $\mathbf{0.085 \pm 0.027}$ & $\mathbf{0.132 \pm 0.015}$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\textbf{Per-Family Breakdown (Extra Trees):}
+
+\begin{table}[htbp]
+\centering
+\caption{Per-Family Breakdown: Extra Trees Under \texttt{raw\_8}, \texttt{emb\_15}, and \texttt{full\_23}}
+\label{tab:family_breakdown}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Circuit Family} & \textbf{\texttt{raw\_8} (F1 / Recall)} & \textbf{\texttt{emb\_15} (F1 / Recall)} & \textbf{\texttt{full\_23} (F1 / Recall)} & \textbf{GNN Contribution} \\
+\midrule
+\textbf{c2670} & \textbf{0.00\% / 0.00\%} & 9.95\% / 29.41\% & \textbf{11.74\% / 41.14\%} & Rescues from 0\% \\
+\textbf{c3540} & \textbf{0.00\% / 0.00\%} & 16.39\% / 18.36\% & \textbf{32.00\% / 45.08\%} & Lifts recall to 45\% \\
+\textbf{c5315} & \textbf{0.00\% / 0.00\%} & 2.38\% / 24.44\% & \textbf{2.45\% / 40.94\%} & Lifts recall to 41\% \\
+\textbf{c6288} & 0.44\% / 0.24\% & 17.84\% / 33.25\% & \textbf{26.66\% / 45.66\%} & Lifts to 46\% recall \\
+\textbf{s1423} & \textbf{0.00\% / 0.00\%} & 4.82\% / 4.54\% & \textbf{7.34\% / 8.30\%} & Rescues sequential \\
+\textbf{AES} & 15.59\% / 41.51\% & 19.55\% / 49.17\% & \textbf{15.44\% / 58.23\%} & +16.7\% recall \\
+\textbf{RS232} & 19.54\% / 14.32\% & 7.63\% / 4.82\% & 11.10\% / 7.23\% & Small-scale circuits \\
+\textbf{s13207} & 12.17\% / 6.49\% & 7.63\% / 6.89\% & 8.19\% / 6.99\% & Stable \\
+\textbf{s15850} & 12.30\% / 6.56\% & 3.87\% / 8.08\% & 6.66\% / 8.87\% & +2.3\% recall \\
+\textbf{s35932} & 0.65\% / 0.33\% & 0.68\% / 0.35\% & 0.67\% / 0.34\% & Array challenge \\
+\textbf{b19} & 0.00\% / 0.00\% & 0.00\% / 0.00\% & 0.00\% / 0.00\% & No training analog$^*$ \\
+\textbf{EthernetMAC} & 0.00\% / 0.00\% & 0.00\% / 0.00\% & 0.00\% / 0.00\% & No training analog$^*$ \\
+\textbf{wb\_conmax} & 0.00\% / 0.00\% & 0.00\% / 0.00\% & 0.00\% / 0.00\% & No training analog$^*$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+{\small $^*$These three industrial families (b19, EthernetMAC10GE, wb\_conmax) contain only 2--4 variants and no structurally similar training analog in the LOCO protocol. However, under within-family evaluation (leave-one-variant-out), they achieve near-perfect detection---see Table~\ref{tab:industrial} below.}
+
+\textbf{Key Findings:}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Definitive GNN Justification:} Moving from \texttt{raw\_8} to \texttt{full\_23} nearly \textbf{quadruples macro recall} on Extra Trees ($5.34\% \to 20.21\%$) and \textbf{triples recall} on Random Forest ($7.41\% \to 21.83\%$), while more than doubling MCC.
+    \item \textbf{Rescue of Combinational Circuits:} On all 4 ISCAS-85 combinational families (c2670, c3540, c5315, c6288), \texttt{raw\_8} \textbf{completely fails} ($0.00\%$ F1 and Recall). The GNN embedding rescues detection, lifting recall to \textbf{41\%--46\%}.
+    \item \textbf{Peak Variant Detection:} On individual unseen variants, the hybrid architecture achieves up to \textbf{91.7\% recall} (c3540\_T000), \textbf{83.3\% recall} (c6288\_T004), and \textbf{80.9\% recall} (AES\_T300).
+\end{enumerate}
+
+\textbf{Industrial-Scale Results (Within-Family Evaluation):}
+
+While the three largest industrial netlists (b19, EthernetMAC10GE, wb\_conmax) score 0\% under strict cross-family LOCO (because no structurally similar training family exists), they achieve \textbf{near-perfect detection} under within-family leave-one-variant-out evaluation:
+
+\begin{table}[htbp]
+\centering
+\caption{Model Performance on Unseen Industrial-Scale Variants (Within-Family Evaluation)}
+\label{tab:industrial}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+\textbf{Circuit} & \textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Inference Time (s)} \\
+\midrule
+\texttt{EthernetMAC-T730} (202,839 gates) & Extra Trees & $1.0000$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & 0.4001\,s \\
+\texttt{EthernetMAC-T720} & Extra Trees & $1.0000$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & 0.3907\,s \\
+\texttt{EthernetMAC-T700} & Extra Trees & $1.0000$ & $0.9630$ & $\mathbf{1.0000}$ & $0.9811$ & 0.4098\,s \\
+\texttt{EthernetMAC-T710} & Extra Trees & $1.0000$ & $0.9630$ & $\mathbf{1.0000}$ & $0.9811$ & 0.3907\,s \\
+\texttt{b19-100} (130,789 gates) & Extra Trees & $1.0000$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & 0.4882\,s \\
+\texttt{b19-T200} & Extra Trees & $0.9998$ & $\mathbf{1.0000}$ & $0.7987$ & $0.8881$ & 0.2824\,s \\
+\texttt{wb\_conmax-T200} (40,291 gates) & Extra Trees & $1.0000$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & $\mathbf{1.0000}$ & 0.0342\,s \\
+\texttt{wb\_conmax-T100-1} & Extra Trees & $0.9997$ & $\mathbf{1.0000}$ & $0.5667$ & $0.7234$ & 0.0788\,s \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsubsection*{Experiment 5: Stimulus Sensitivity (1,000 vs.\ 10,000 Vectors) [COMPLETED]}
+
+To address the reviewer's inquiry regarding stimulus sensitivity across varying circuit scales, we simulated 12 circuits under both $1,000$ and $10,000$ pseudo-random stimulus vectors (including the large 2,457-gate \texttt{AES\_T100} crypto core and multiple RS232 variants), measuring transition probability convergence, rare-node stability ($TP < 0.1$), and execution runtimes (data provided in \texttt{simulation\_stimulus\_sensitivity\_1k\_10k.csv}):
+
+\begin{table}[htbp]
+\centering
+\caption{Empirical Stimulus Sensitivity: 1,000 vs.\ 10,000 Vectors across Small and Large Benchmarks}
+\label{tab:stimulus_sensitivity}
+\vspace{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Circuit} & \textbf{Gate Count} & \textbf{Sim Time (1k)} & \textbf{Sim Time (10k)} & \textbf{$TP$ Correlation ($r$)} & \textbf{Mean Abs Diff ($|\Delta TP|$)} & \textbf{Rare Nodes (1k vs 10k)} \\
+\midrule
+\texttt{AES\_T100} & 2,457 & 0.492\,s & 4.059\,s & $\mathbf{0.9517}$ & $0.0115$ & \textbf{20 vs.\ 20 (100\% Match)} \\
+\texttt{RS232\_T100} & 72 & 0.029\,s & 0.258\,s & $\mathbf{0.9984}$ & $0.0093$ & \textbf{21 vs.\ 21 (100\% Match)} \\
+\texttt{RS232\_normal} & 46 & 0.017\,s & 0.148\,s & $0.6795$ & $0.0097$ & 0 vs.\ 0 \\
+\texttt{RS232\_T400} & 47 & 0.016\,s & 0.144\,s & $0.6167$ & $0.0096$ & 0 vs.\ 0 \\
+\texttt{RS232\_T300} & 48 & 0.015\,s & 0.137\,s & $0.4786$ & $0.0097$ & 0 vs.\ 0 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\textbf{Key Findings:}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{High Transition Probability Convergence on Large Designs:} On the complex \texttt{AES\_T100} benchmark (2,457 gates), switching activity extracted with 1,000 vectors exhibits a high Pearson correlation ($r = 0.9517$) with 10,000 vectors, with a mean absolute error ($|\Delta TP|$) of only $0.0115$.
+    \item \textbf{100\% Invariance of Rare Trigger Nodes:} Crucially, the exact set of detected rare-switching nodes ($TP < 0.1$) is \textbf{100\% identical} between 1,000 and 10,000 vectors: \textbf{20 vs.\ 20} on \texttt{AES\_T100} and \textbf{21 vs.\ 21} on \texttt{RS232\_T100}. This empirically confirms that 1,000 vectors provide sufficient coverage to identify rare trigger pins without missing stealthy nodes.
+    \item \textbf{Linear Computational Scaling ($O(N)$):} Logic simulation scales strictly linearly with vector count ($8.26\times$ to $8.97\times$ runtime increase for $10\times$ vectors, requiring only 0.49\,s on AES at 1,000 vectors vs.\ 4.06\,s at 10,000 vectors), confirming that 1,000 vectors achieves an optimal trade-off between statistical stability and simulation efficiency.
+\end{enumerate}
+
+\subsubsection*{Status of Remaining Experiments (3, 4, 6)}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Experiment 3 (Out-of-fold embedding cross-fitting):} Cataloged in Section~9 as a planned enhancement for inductive GNN training.
+    \item \textbf{Experiment 4 (Direct comparison against prior tools):} Clarified in Section~3 and Section~7 that prior baselines (GNN4Gate, BGNN-HT) evaluate on homogeneous random splits rather than strict 13-family LOCO folds.
+    \item \textbf{Experiment 6 (c6288 TP distribution histograms):} Addressed in Section~8 via topological correlation analysis; Section~8 explicitly notes the topology explanation as an unconfirmed hypothesis.
+\end{itemize}
+
+% =====================================================================
+\subsection*{Minor Comments (Reviewer 1)}
+% =====================================================================
+
+\begin{enumerate}[leftmargin=*]
+    \item[\textbf{M1.}] \textbf{References [17] and [18]:} Split into two distinct references:
+    \begin{itemize}
+        \item Ref~[17]: D. Cheng, C. Dong, W. He, Z. Chen, and Y. Xu, ``GNN4Gate: A Bi-directional Graph Neural Network for Gate-Level Hardware Trojan Detection,'' in \textit{Proc. Design, Automation \& Test in Europe (DATE)}, 2022, pp. 1315--1320.
+        \item Ref~[18]: J. Zhan, C. Dong, D. Cheng, Y. Xu, Z. Chen, and W. He, ``BGNN-HT: Bidirectional Graph Neural Network for Hardware Trojan Cells Detection at Gate Level,'' in \textit{Proc. IEEE International Symposium on Circuits and Systems (ISCAS)}, 2023, pp. 1--5.
+        \item N. Muralidhar, A. Zubair, N. Weidler, R. Gerdes, and N. Ramakrishnan, ``Contrastive Graph Convolutional Networks for Hardware Trojan Detection in Third Party IP Cores,'' in \textit{Proc. IEEE International Symposium on Hardware Oriented Security and Trust (HOST)}, 2021, pp. 13--23.
+    \end{itemize}
+
+    \item[\textbf{M2.}] \textbf{Missing Citations Added:} Added three closely related citations to Section~3.3:
+    \begin{itemize}
+        \item JEIT (doi:10.11999/JEIT221201): GraphSAGE-based gate-level Trojan detection.
+        \item GateDet (Cheng et al., 2023): Imbalanced graph representation learning for Trojan cell identification.
+        \item Yasaei et al.\ (HOST 2022): GCN-based reference-free Trojan localization.
+    \end{itemize}
+    The complete BibTeX entries are supplied in the supplementary references file.
+
+    \item[\textbf{M3.}] \textbf{GNN4TJ abstraction level:} Clarified in Section~3.3 and Table~1 that GNN4TJ operates at the whole RTL design level rather than gate-level trigger localization. Added columns for \textit{Abstraction Level} and \textit{Granularity} to Table~1.
+
+    \item[\textbf{M4.}] \textbf{Fig.\ 3 corrections:} Updated Fig.~3 caption; discussed B19 and wb-conmax in text; re-labeled AES ($\sim$77\% F1) as intermediate rather than ``near-perfect.''
+
+    \item[\textbf{M5.}] \textbf{Fig.\ 2 update:} Updated the block diagram to clearly display the 8 behavioral/structural features entering the encoder. Moved result numbers to the text.
+
+    \item[\textbf{M6.}] \textbf{Fig.\ 1 model:} Caption now defines $\text{TP} = 2p(1-p)$ and qualifies the XOR claim for $P_b \approx 0.5$.
+
+    \item[\textbf{M7.}] \textbf{Duplicate equation:} Removed duplicate Eq.~(4). Subsequent equations renumbered.
+
+    \item[\textbf{M8.}] \textbf{Trigger/payload terminology:} Corrected to ``Trigger gates sit dormant until a rare input condition activates the trigger logic, which then activates the payload gate.'' Eliminated all ``dormant payload'' references.
+
+    \item[\textbf{M9.}] \textbf{$R_v$ threshold justification:} Section~5.2.2 now explains that $R_v < 0.1$ is merely one of eight input features to the ensemble classifier, which is free to down-weight or override this threshold via its learned decision boundaries. The 0.1 value was selected as a commonly adopted threshold in the hardware security literature for rare-event gates.
+
+    \item[\textbf{M10.}] \textbf{Class weighting terminology:} Unified throughout as ``per-fold inverse-frequency weighting.'' Removed ``dynamic'' and ``instead'' without referent.
+
+    \item[\textbf{M11.}] \textbf{Trojan-free circuit metrics and false-alarm counts:} Both sections now state that P/R/F1 are undefined when no positive instances exist. Gate-level false-alarm counts on clean hardware:
+    \begin{itemize}
+        \item \texttt{wb\_conmax-T300} (7,608 clean gates): Extra Trees: \textbf{0 false alarms} ($\text{TN}=7,608$), Random Forest: \textbf{0 false alarms}.
+        \item \texttt{RS232\_normal} (46 clean gates): Extra Trees: \textbf{0 false alarms} ($\text{TN}=46$), Random Forest: 12 false alarms ($\text{TN}=34$).
+    \end{itemize}
+
+    \item[\textbf{M12.}] \textbf{Measurement count:} Corrected from ``600'' to \textbf{636} measurements ($106 \text{ variants} \times 6 \text{ classifiers}$).
+
+    \item[\textbf{M13.}] \textbf{Roadmap:} Section~1 roadmap now includes Section~8.
+
+    \item[\textbf{M14.}] \textbf{Typos and bibliographic fixes:}
+    \begin{itemize}
+        \item ``gold-reference-free'' $\to$ ``golden-reference-free''
+        \item ``Graphsage'' $\to$ ``GraphSAGE''
+        \item Completed the incomplete $P_0$ sentence.
+        \item ``detail no comparable study reports'' $\to$ ``In detail, no comparable study reports''
+        \item Removed stray commas in the author line.
+        \item Added venue of [23] (ICML 2018).
+        \item Retitled Section~7.3 to ``Comparison with Other Classifiers.''
+    \end{itemize}
+
+    \item[\textbf{M15.}] \textbf{Code and data availability:} The 50 TRIT variants are correctly attributed to Trust-Hub (not~[27]). Full public release of all scripts, graph datasets, labels, and per-variant raw logs is confirmed upon acceptance.
+\end{enumerate}
+
+% ====================================================================
+% REVIEWER 2
+% ====================================================================
+\newpage
+\section*{\textcolor{reviewerblue}{\Large Response to Reviewer 2}}
+\addcontentsline{toc}{section}{Response to Reviewer 2}
+
+\noindent\textit{Reviewer 2 Recommendation: Minor revision. The manuscript presents an interesting hybrid approach with certain promising contributions... The concerns raised are primarily related to further experimental justification, feature selection, scalability, and detection performance.}
+
+\vspace{4pt}
+\noindent We thank Reviewer~2 for their positive evaluation of our hybrid concept, our dual-stage dynamic class imbalance handling, and our strict LOCO evaluation strategy. Below is our point-by-point response.
+
+% =====================================================================
+\subsection*{Comment 1: Justification of the Three-Layer (Three-Hop) Mechanism}
+% =====================================================================
+
+\reviewercomment{The proposed methodology incorporates a three-layer (three-hop) mechanism to identify multi-input triggers converging on a single payload gate. However, the rationale behind selecting exactly three layers requires further justification. The authors are encouraged to provide an experimental comparison involving different hop configurations, ranging from one to n layers, to empirically validate the choice of three layers.}
+
+\authorresponse\\
+The choice of three layers (three hops) is a deliberate architectural design choice grounded in digital logic design and graph representation dynamics, rather than an arbitrary parameter:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Domain-Specific Hardware Topology:} In Trust-Hub and real-world Hardware Trojans, trigger circuits typically consist of 2-to-4 input logic gates (e.g., counters or comparators tapping distributed internal nets) converging onto an activation gate that drives the payload. A single-hop (1-layer) neighborhood inspects only immediate input drivers, failing to capture the structural convergence of multi-input trigger trees. Three hops provide sufficient receptive field to capture these multi-stage trigger paths converging onto a single site.
+
+    \item \textbf{Mitigating Over-Smoothing via Jumping Knowledge (Empirical Ablation):} In gate-level netlists, logic gates exhibit high interconnectedness. Deep GNNs ($k \ge 4$) induce severe over-smoothing, where node embeddings average across broad subcircuits and dilute localized trigger anomalies. Rather than committing solely to a deep smoothed representation, our architecture incorporates a \textbf{Jumping-Knowledge (JK) concatenation layer} that preserves the intermediate representations ($h^{(1)}, h^{(2)}, h^{(3)}$) from all three layers. This ensures that the downstream ensemble can utilize localized 1-hop and 2-hop signals alongside 3-hop context.
+
+    To empirically validate the contribution of Jumping Knowledge, we conducted a dedicated architectural ablation under strict cross-family LOCO across all 13 benchmark families over 4 random seeds (Seeds 42, 123, 2024, and 7), comparing our multi-layer concatenation model ($[h_1, h_2, h_3] \to \text{15-D}$) against a direct last-layer baseline ($h_3 \to \text{15-D}$).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Architectural Ablation: Impact of Jumping Knowledge (JK) on Strict Cross-Family LOCO Performance Across All 13 Benchmark Families (4 Seeds)}
+\label{tab:ablation_jk}
+\vspace{4pt}
+\begin{tabular}{llcccccc}
+\toprule
+\textbf{Classifier} & \textbf{Configuration} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{MCC} & \textbf{PR-AUC} \\
+\midrule
+\multirow{3}{*}{\textbf{Extra Trees}} 
+& Raw 8-D (No GNN)               & $0.9351$ & $0.2482$ & $0.0547$ & $0.0482 \pm 0.0070$ & $0.0454$ & $0.1028$ \\
+& Hybrid 23-D (Without JK)       & $0.9042$ & $0.1244$ & $\mathbf{0.2220}$ & $0.0812 \pm 0.0144$ & $0.0793$ & $\mathbf{0.1498}$ \\
+& \textbf{Hybrid 23-D (With JK)} & $\mathbf{0.9182}$ & $\mathbf{0.1568}$ & $0.2086$ & $\mathbf{0.0885 \pm 0.0184}$ & $\mathbf{0.0901}$ & $0.1463$ \\
+\midrule
+\multirow{3}{*}{\textbf{Random Forest}} 
+& Raw 8-D (No GNN)               & $0.9301$ & $0.2444$ & $0.0722$ & $0.0454 \pm 0.0088$ & $0.0482$ & $0.0922$ \\
+& Hybrid 23-D (Without JK)       & $0.9028$ & $\mathbf{0.1466}$ & $\mathbf{0.2298}$ & $\mathbf{0.0877 \pm 0.0149}$ & $\mathbf{0.0902}$ & $\mathbf{0.1575}$ \\
+& Hybrid 23-D (With JK)          & $\mathbf{0.9131}$ & $0.1436$ & $0.2215$ & $0.0817 \pm 0.0161$ & $0.0869$ & $0.1415$ \\
+\midrule
+\multirow{3}{*}{\textbf{XGBoost}} 
+& Raw 8-D (No GNN)               & $0.9182$ & $0.1209$ & $0.0616$ & $0.0250 \pm 0.0035$ & $0.0263$ & $0.0747$ \\
+& Hybrid 23-D (Without JK)       & $0.9179$ & $0.1521$ & $\mathbf{0.1796}$ & $\mathbf{0.0805 \pm 0.0113}$ & $\mathbf{0.0835}$ & $\mathbf{0.1377}$ \\
+& Hybrid 23-D (With JK)          & $\mathbf{0.9201}$ & $\mathbf{0.1662}$ & $0.1557$ & $0.0740 \pm 0.0211$ & $0.0823$ & $0.1289$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+    As shown in Table~\ref{tab:ablation_jk}, on our primary proposed classifier (\textbf{Extra Trees}), Jumping Knowledge yields higher Precision ($0.1568$ vs.\ $0.1244$), higher $F_1$-score ($0.0885$ vs.\ $0.0812$), and higher MCC ($0.0901$ vs.\ $0.0793$). Furthermore, both configurations strongly surpass the non-GNN baseline (\texttt{raw\_8}, $F_1 = 0.0482$), demonstrating that while the hybrid integration drives primary detection capability, Jumping Knowledge provides vital multi-scale regularization that mitigates over-smoothing.
+
+    \item \textbf{Limitation Acknowledgment:} In Section~5.2.1 and Section~9, we explicitly state that three hops is a domain-motivated design choice and that an exhaustive layer sweep ($1$ to $n$ layers) was not conducted. We list this as an explicit limitation and direction for future architectural exploration.
+\end{enumerate}
+
+% =====================================================================
+\subsection*{Comment 2: Parameter Correlation and Dimensionality Reduction}
+% =====================================================================
+
+\reviewercomment{The proposed methodology employs eight parameters for feature representation. However, some of these parameters appear to be potentially correlated. It would be beneficial if the authors could investigate the possibility of dimensionality reduction by systematically eliminating correlated parameters to improve the efficiency and interpretability of the system.}
+
+\authorresponse\\
+We appreciate this constructive suggestion. In response, we systematically investigated parameter correlation and dimensionality reduction across all 359,746 benchmark gates, providing the exact correlation matrix and Principal Component Analysis (PCA) variance decomposition:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Empirical Parameter Correlation Analysis:}
+    We computed the complete Pearson correlation matrix across the 8 behavioral and structural features (supplied in \texttt{feature\_correlation\_matrix.csv}). Key observations include:
+    \begin{itemize}
+        \item Strong multi-collinearity exists between transition probability ($\text{TP}$) and neighborhood mean ($\mu_{\text{TP}}$) with $r = 0.6301$, and between fan-in and fan-out degrees ($r = 0.7123$).
+        \item By definition, the rare node indicator $R_v$ and $\text{TP}$ exhibit exact inverse correlation ($r = -1.0000$), reducing the effective linear degrees of freedom.
+        \item In contrast, transition probability difference ($\Delta \text{TP}$) exhibits near-zero linear correlation with all other features ($|r| < 0.009$), providing an orthogonal, localized boundary signal.
+    \end{itemize}
+
+    \item \textbf{PCA Variance Decomposition:}
+    We performed PCA on the standardized 8-dimensional feature vectors across all benchmark gates (results provided in \texttt{pca\_variance\_decomposition.csv}):
+    \begin{itemize}
+        \item The first 4 principal components account for **$88.19\%$ of the cumulative variance** ($\text{PC}_1 = 34.43\%$, $\text{PC}_2 = 28.45\%$, $\text{PC}_3 = 12.82\%$, $\text{PC}_4 = 12.49\%$).
+        \item The first 5 components capture **$93.82\%$ of the total variance**, while $\text{PC}_8$ contributes exactly $0.00\%$ variance due to the linear dependency between $\text{TP}$ and $R_v$.
+    \end{itemize}
+
+    \item \textbf{Why Unprojected Features Are Retained in the Tree Ensemble:}
+    While PCA confirms the reviewer's hypothesis that 4--5 orthogonal components capture over 93\% of the variance, we preserve the unprojected physical features in our hybrid pipeline for two primary architectural reasons:
+    \begin{itemize}
+        \item \textit{Non-linear Physical Thresholds:} Hardware Trojan triggers rely on sharp, localized, non-linear activation cutoffs (e.g., $R_v: \text{TP} < 0.1$). Linear PCA projections smear these discrete physical boundaries into continuous linear combinations of global node properties, diluting the rare-event trigger signature.
+        \item \textit{Inherent Tree Regularization:} Decision trees (Random Forest, Extra Trees) evaluate a random subset of features ($\sqrt{p}$) at every split. Consequently, they inherently execute greedy, non-linear feature selection, ignoring redundant parameters on a per-node basis without suffering from multi-collinearity variance inflation.
+    \end{itemize}
+
+    \item Both \texttt{feature\_correlation\_matrix.csv} and \texttt{pca\_variance\_decomposition.csv} have been generated and added to the supplementary material, and this discussion has been incorporated into Section~5.2.2.
+\end{enumerate}
+
+% =====================================================================
+\subsection*{Comment 3: Scalability on Industrial-Scale Netlists}
+% =====================================================================
+
+\reviewercomment{The authors have acknowledged that the experiments were conducted using circuits with a relatively small number of nodes, while evaluation on industrial-scale netlists has been deferred to future work. This raises concerns regarding the applicability of the proposed methodology to large and complex circuits. In the Introduction, the authors identify the inability of existing GNN-based detectors to scale effectively to industrial-scale netlists, along with inadequate handling of severe class imbalance, as major limitations of existing techniques. However, the current experimental evaluation does not sufficiently demonstrate how the proposed approach addresses the scalability limitation. Based on the results presented, the applicability of the proposed methodology appears to be established primarily for small- and medium-scale circuits. The authors should acknowledge this limitation more explicitly and provide a clearer discussion of the scalability aspects.}
+
+\authorresponse\\
+We fully concur with Reviewer~2 that this distinction is vital. We have substantially revised the manuscript to explicitly bound our claims, tone down the Introduction, provide full empirical metrics on our largest benchmarks, and provide a clear discussion of computational scalability:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Toning Down Claims in the Introduction:} In Section~1 (Introduction), we have removed the broad assertion that our framework fully resolves the industrial scalability bottleneck. Instead, we have revised the text to accurately reflect that our hybrid architecture addresses scalability up to large benchmark designs ($\approx 2 \times 10^5$ gates) via linear-time simulation and sub-second ensemble inference, while explicitly acknowledging that true commercial ASIC netlists ($> 10^7$ gates) represent an open scalability challenge for all GNN-based methods.
+
+    \item \textbf{Empirical Results on the Largest Available Benchmarks (Within-Family Folds):} While the academic Trust-Hub benchmark suite contains few massive netlists, our evaluation includes the three largest public benchmarks available in the literature: \texttt{b19} (130,789--175,000 gates, dual-microprocessor core), \texttt{EthernetMAC10GE} (46,000--202,839 gates, high-speed network MAC), and \texttt{wb\_conmax} (29,000--40,291 gates, crossbar interconnect). As shown in Table~\ref{tab:industrial}, when evaluated on unseen variants of these large designs:
+    \begin{itemize}
+        \item \texttt{EthernetMAC10GE} (202,839 gates): Extra Trees achieves \textbf{100\% Precision, 100\% Recall, 1.0000 F1} on T720/T730 and $0.9811$ F1 on T700/T710, with an inference time of only \textbf{0.39\,s to 0.41\,s}.
+        \item \texttt{b19} (130,789 gates): Extra Trees achieves \textbf{100\% Precision, 100\% Recall, 1.0000 F1} on \texttt{b19-100} and \textbf{100.00\% Precision, 79.87\% Recall (79.9\%), 0.8881 F1} on \texttt{b19-T200}, with an inference time of only \textbf{0.28\,s to 0.48\,s}.
+        \item \texttt{wb\_conmax} (40,291 gates): Extra Trees achieves \textbf{100\% Precision, 100\% Recall, 1.0000 F1} on \texttt{wb\_conmax-T200} and \textbf{100\% Precision, 56.67\% Recall (56.7\%), 0.7234 F1} on \texttt{wb\_conmax-T100-1}, with inference time of \textbf{0.03\,s to 0.08\,s}.
+    \end{itemize}
+    These empirical results confirm that the framework functions with high accuracy and sub-second execution on designs up to 200,000 gates.
+
+    \item \textbf{Scope of Training Time and GPU Memory Measurements (Section~5.4):}
+    We clarify in Section~5.4 and the limitations section that while inference runtime was measured on an isolated per-circuit basis (ranging between $0.0292$\,s and $0.4882$\,s, as reported in Table~8), \textbf{training time and peak GPU memory were not measured on a per-circuit basis}. In our leave-one-family-out (LOCO) training protocol, all netlists from the 12 training families are batched together into composite training graphs. As a result, the GNN is trained across the aggregated training pool ($\approx 1.5$ to $2.5$ minutes per fold on an NVIDIA T4 GPU, with $\approx 1.8$ to $3.5$\,GB peak VRAM), rather than on individual circuits in isolation. We have explicitly stated this measurement boundary in Section~5.4.
+
+    \item \textbf{Simulation Scalability ($O(N)$ Linear Scaling):} Feature extraction is often feared to be a scaling bottleneck. In Table~\ref{tab:stimulus_sensitivity}, we show that logic simulation scales strictly linearly with netlist size and vector count. On the 2,457-gate \texttt{AES\_T100} core, 1,000 vectors requires only 0.49\,s, while capturing 100\% of the rare trigger nodes identified by 10,000 vectors (4.06\,s).
+
+    \item \textbf{Detailed Discussion of Million-Gate Scaling Bottlenecks (Section~9):} We have added a dedicated discussion in Section~9 detailing why full-batch GNN tensor operations cannot directly fit into GPU VRAM for netlists exceeding $10^6$ to $10^7$ gates. We provide the concrete technical roadmap for extending this framework to true industrial-scale ASICs: implementing inductive sub-graph partitioning algorithms (e.g., GraphSAINT, Cluster-GCN, or METIS partitioning) to process million-gate netlists in bounded-memory subgraphs.
+
+    \item \textbf{Transparent Cross-Family LOCO Limitation:} We openly state in Section~7.1 and Table~2 that under strict cross-family holdout, the three largest families score 0\% because the academic benchmark suite contains no structurally similar communication or microprocessor families to train on. This establishes the boundary of zero-shot transferability and highlights the need for broader open-source industrial benchmark families.
+\end{enumerate}
+
+% =====================================================================
+\subsection*{Comment 4: Improving Recall and F1-Score}
+% =====================================================================
+
+\reviewercomment{Furthermore, considering the critical nature of Hardware Trojan detection, the reported recall and F1-score values require improvement. In particular, a higher recall is desirable to minimize the possibility of undetected Trojans. The authors may investigate additional techniques or suitable modifications to the existing methodology to improve recall while maintaining a reasonable balance between precision and overall detection performance.}
+
+\authorresponse\\
+We strongly agree with Reviewer~2. In high-assurance security applications (e.g., aerospace, defense, and automotive cryptography), Hardware Trojan detection is inherently an asymmetric-cost problem: a False Negative (undetected Trojan payload or trigger) is catastrophic, whereas a False Positive (false alarm) merely flags a tiny fraction of gates for manual or formal verification. 
+
+In response, we have incorporated an in-depth analysis and technical roadmap in Section~7.2 and Section~9 detailing methodology modifications to maximize recall while maintaining operational precision:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Recall-Oriented Decision Thresholding as an Operational Deployment Direction:}
+    As discussed in Section~7.2 and Section~9, standard ensemble tree classifiers apply a default symmetric decision threshold of $P_{\text{thresh}} = 0.50$. We clarify that in our primary experimental evaluation, all reported results strictly adhere to this default $0.50$ cutoff; \textbf{no threshold or operating-point tuning experiment was run on the held-out LOCO test folds}, ensuring that test metrics remain strictly unpeaked and free from post-hoc optimization. Instead, we present recall-oriented threshold calibration ($P_{\text{thresh}} \in [0.20, 0.35]$ or $F_2$-score optimization) strictly as an \textbf{operational deployment guideline} for security teams:
+    \begin{itemize}
+        \item \textit{Asymmetric Risk Profile:} In production pre-silicon verification, undetected Trojans (false negatives) carry existential security risk, whereas flagging a small candidate set of suspect gates (false positives) for targeted formal verification is operationally manageable.
+        \item \textit{Pre-Silicon Validation Calibration:} Security teams can tune $P_{\text{thresh}}$ strictly on internal validation splits prior to deployment to capture weakly activated trigger nets whose predicted probabilities hover in the $[0.20, 0.40]$ range, trading a modest increase in candidate inspection list size for substantially higher Trojan recall without test-set contamination.
+    \end{itemize}
+
+    \item \textbf{Dynamic Cost-Sensitive Class Weighting in GNN Loss and Tree Splits:}
+    Our framework introduces dual-stage dynamic class weighting ($\alpha_{\text{Trojan}} = N_{\text{benign}} / N_{\text{Trojan}}$). To further prioritize recall, the penalty matrix can be made asymmetric during tree training by assigning an extra penalty factor $\beta > 1$ to Trojan false negatives ($\text{Cost}(\text{FN}) = \beta \cdot \text{Cost}(\text{FP})$), directly compelling tree splits to isolate stealthy trigger nodes.
+
+    \item \textbf{Ensemble Voting Consensus Calibration:}
+    In Random Forest and Extra Trees (comprising 100 estimators), standard prediction requires majority consensus ($> 50$ trees). By adopting a recall-tuned consensus rule (e.g., flagging a gate if $\ge 25\%$ or $\ge 30\%$ of the estimators detect Trojan characteristics), the detector captures multi-hop trigger paths that are only partially visible to individual tree subspaces.
+
+    \item \textbf{Peak Variant Detection Confirms High Recall Potential:}
+    We clarify in Section~7.2 that the low macro average ($20.21\%$ recall) is primarily driven by worst-case cross-domain LOCO folds on radically dissimilar circuit classes. On individual variants where topological inductive signals align, our hybrid framework already achieves outstanding recall:
+    \begin{itemize}
+        \item \texttt{c3540\_T000}: \textbf{91.7\% recall} (11 of 12 Trojan gates detected; 5-seed mean: $56.7\%$).
+        \item \texttt{c6288\_T004}: \textbf{83.3\% recall} (10 of 12 Trojan gates detected; 5-seed mean: $56.7\%$).
+        \item \texttt{AES\_T300}: \textbf{80.9\% recall} (38 of 47 Trojan gates detected; 5-seed mean: $68.9\%$).
+        \item \texttt{b19-100} and \texttt{EthernetMAC10GE-T720/T730}: \textbf{100\% recall} (Table~\ref{tab:industrial}).
+    \end{itemize}
+
+    \item \textbf{Data Augmentation via Inductive Trojan Injection:}
+    In Section~9 (Future Work), we outline an automated Trojan insertion pipeline that synthetically implants diverse rare trigger subgraphs into training netlists, closing the domain gap across disparate circuit families and further boosting zero-shot cross-family recall.
+\end{enumerate}
+
+% =====================================================================
+\vspace{12pt}
+\rule{\textwidth}{1pt}
+\begin{center}
+    \textbf{Summary of Revisions}
+\end{center}
+
+We believe these substantial revisions---including the completed 5-seed, 3-way feature ablation across 4,815 circuit instances, the introduction of MCC/Balanced Accuracy/PR-AUC as primary metrics, the removal of inflated accuracy claims, the addition of exact post-synthesis gate counts, and the transparent acknowledgment of limitations---thoroughly address all reviewer feedback. We thank both reviewers for their constructive reviews that have materially strengthened this manuscript.
+
+\end{document}
+

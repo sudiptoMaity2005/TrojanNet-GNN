@@ -1,0 +1,496 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 450] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 6238 >>
+stream
+1 1 1 rg
+0 0 792 450 re f
+0.20 0.40 0.70 RG
+0.95 0.96 0.98 rg
+1.5 w
+25 170 115 230 re B
+0.00 0.00 0.00 rg
+BT
+/F2 11 Tf
+44.8 375.0 Td
+(Netlist Input) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 9 Tf
+39.9 355.0 Td
+(Gate-Level Verilog) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 9 Tf
+39.9 340.0 Td
+(Cell Library \(.db\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 9 Tf
+44.6 310.0 Td
+(Logic Simulation) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8.5 Tf
+35.6 295.0 Td
+(Event-Driven Stimulus) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8.5 Tf
+46.6 280.0 Td
+(\(1k-10k Vectors\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 9 Tf
+39.9 250.0 Td
+(Graph Construction) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8.5 Tf
+37.8 235.0 Td
+(Directed DAG G=\(V,E\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8.5 Tf
+46.6 220.0 Td
+(\(Driver -> Load\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 8.5 Tf
+35.6 190.0 Td
+(Feature Normalization) Tj
+ET
+0.20 0.20 0.20 RG
+1.5 w
+140.0 285.0 m 170.0 285.0 l S
+0.20 0.20 0.20 rg
+170.0 285.0 m 164.8 288.0 l 164.8 282.0 l h f
+0.15 0.60 0.25 RG
+0.94 0.98 0.94 rg
+2.0 w
+170 100 160 310 re B
+0.10 0.45 0.20 rg
+BT
+/F2 11 Tf
+189.9 385.0 Td
+(8 Behavioral Features) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 9 Tf
+193.8 368.0 Td
+(x_v in R^8 \(Golden-Free\)) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 334 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 345.0 Td
+(f1: TP\(v\)) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 336.0 Td
+(Transition Probability) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 306 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 317.0 Td
+(f2: Delta TP_ref) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 308.0 Td
+(Autonomous \(f2 = 0.0\)) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 278 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 289.0 Td
+(f3: P0\(v\)) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 280.0 Td
+(1 - TP \(Inactivity Prob\)) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 250 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 261.0 Td
+(f4: mu_TP\(v\)) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 252.0 Td
+(Neighbor Mean TP) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 222 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 233.0 Td
+(f5: Delta TP_nb) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 224.0 Td
+(Neighbor Disparity Sum) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 194 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 205.0 Td
+(f6: z_TP\(v\)) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 196.0 Td
+(Local TP Z-score) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 166 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 177.0 Td
+(f7: Fan-in) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 168.0 Td
+(In-degree \(Driver Count\)) Tj
+ET
+0.30 0.70 0.40 RG
+1.00 1.00 1.00 rg
+1.0 w
+180 138 140 24 re B
+0.10 0.40 0.15 rg
+BT
+/F2 8.5 Tf
+187.0 149.0 Td
+(f8: Fan-out) Tj
+ET
+0.30 0.30 0.30 rg
+BT
+/F1 7.5 Tf
+187.0 140.0 Td
+(Out-degree \(Load Count\)) Tj
+ET
+0.20 0.20 0.20 RG
+1.5 w
+330.0 285.0 m 360.0 285.0 l S
+0.20 0.20 0.20 rg
+360.0 285.0 m 354.8 288.0 l 354.8 282.0 l h f
+0.80 0.40 0.10 RG
+0.98 0.95 0.92 rg
+1.8 w
+360 130 145 270 re B
+0.70 0.30 0.00 rg
+BT
+/F2 11 Tf
+394.8 375.0 Td
+(GraphSAGE GNN) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 9 Tf
+387.5 358.0 Td
+(Topological Encoder) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8.5 Tf
+385.6 330.0 Td
+(3 Hop Message-Passing) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8 Tf
+386.2 315.0 Td
+(Layer 1: SAGEConv \(32\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8 Tf
+386.2 300.0 Td
+(Layer 2: SAGEConv \(32\)) Tj
+ET
+0.70 0.20 0.00 rg
+BT
+/F2 8 Tf
+386.2 285.0 Td
+(Layer 3: SAGEConv \(15\)) Tj
+ET
+0.80 0.40 0.10 RG
+1.00 1.00 1.00 rg
+1.0 w
+370 235 125 34 re B
+0.00 0.00 0.00 rg
+BT
+/F2 8.5 Tf
+383.4 256.0 Td
+(Jumping Knowledge \(JK\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 7.5 Tf
+387.1 243.0 Td
+(Multi-Hop Concatenation) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 8.5 Tf
+390.0 210.0 Td
+(Dynamic Loss Weight) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8 Tf
+386.2 195.0 Td
+(w_pos = N_ben / N_troj) Tj
+ET
+0.60 0.20 0.00 rg
+BT
+/F2 9 Tf
+380.5 165.0 Td
+(h_v in R^15 Embeddings) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 7.5 Tf
+406.6 148.0 Td
+(\(Per Table 4\)) Tj
+ET
+0.20 0.20 0.20 RG
+1.5 w
+505.0 285.0 m 535.0 285.0 l S
+0.20 0.20 0.20 rg
+535.0 285.0 m 529.8 288.0 l 529.8 282.0 l h f
+0.50 0.20 0.70 RG
+0.96 0.94 0.98 rg
+1.5 w
+535 225 100 120 re B
+0.00 0.00 0.00 rg
+BT
+/F2 10 Tf
+551.2 320.0 Td
+(Hybrid Fusion) Tj
+ET
+0.40 0.10 0.60 rg
+BT
+/F2 10 Tf
+548.6 300.0 Td
+([ x_v || h_v ]) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 9 Tf
+559.3 280.0 Td
+(23-D Vector) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 7.5 Tf
+548.0 260.0 Td
+(\(8 Raw Behavioral +) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 7.5 Tf
+555.8 246.0 Td
+(15 Topological\)) Tj
+ET
+0.20 0.20 0.20 RG
+1.5 w
+635.0 285.0 m 665.0 285.0 l S
+0.20 0.20 0.20 rg
+665.0 285.0 m 659.8 288.0 l 659.8 282.0 l h f
+0.10 0.40 0.70 RG
+0.93 0.96 0.98 rg
+1.8 w
+665 120 110 280 re B
+0.10 0.35 0.60 rg
+BT
+/F2 11 Tf
+688.5 375.0 Td
+(Ensemble ML) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 8.5 Tf
+671.4 358.0 Td
+(Stage-2 Classification) Tj
+ET
+0.30 0.50 0.80 RG
+1.00 1.00 1.00 rg
+1.0 w
+673 320 94 20 re B
+0.00 0.00 0.00 rg
+BT
+/F2 7.5 Tf
+688.8 328.0 Td
+(Extra Trees \(ET\)) Tj
+ET
+0.30 0.50 0.80 RG
+1.00 1.00 1.00 rg
+1.0 w
+673 294 94 20 re B
+0.00 0.00 0.00 rg
+BT
+/F2 7.5 Tf
+684.9 302.0 Td
+(Random Forest \(RF\)) Tj
+ET
+0.30 0.50 0.80 RG
+1.00 1.00 1.00 rg
+1.0 w
+673 268 94 20 re B
+0.00 0.00 0.00 rg
+BT
+/F2 7.5 Tf
+683.0 276.0 Td
+(XGBoost \(scale_pos\)) Tj
+ET
+0.30 0.50 0.80 RG
+1.00 1.00 1.00 rg
+1.0 w
+673 242 94 20 re B
+0.00 0.00 0.00 rg
+BT
+/F2 7.5 Tf
+683.0 250.0 Td
+(CatBoost \(balanced\)) Tj
+ET
+0.30 0.50 0.80 RG
+1.00 1.00 1.00 rg
+1.0 w
+673 216 94 20 re B
+0.00 0.00 0.00 rg
+BT
+/F2 7.5 Tf
+679.0 224.0 Td
+(Linear SVM \(balanced\)) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 8 Tf
+670.1 185.0 Td
+(Cost-Sensitive Splitting) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 7.5 Tf
+677.1 172.0 Td
+(Balanced Class Weights) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 7.5 Tf
+673.2 150.0 Td
+(Strict Cross-Family LOCO) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 7.5 Tf
+683.0 137.0 Td
+(\(13 Folds, 5 Seeds\)) Tj
+ET
+0.20 0.20 0.20 RG
+1.5 w
+720.0 120.0 m 720.0 75.0 l S
+0.20 0.20 0.20 rg
+720.0 75.0 m 723.0 80.2 l 717.0 80.2 l h f
+0.80 0.20 0.20 RG
+1.00 0.94 0.94 rg
+1.8 w
+645 20 135 55 re B
+0.70 0.10 0.10 rg
+BT
+/F2 10 Tf
+662.6 58.0 Td
+(Trojan Localization) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F1 8.5 Tf
+665.6 43.0 Td
+(Per-Gate Binary Label) Tj
+ET
+0.00 0.00 0.00 rg
+BT
+/F2 8 Tf
+647.5 29.0 Td
+(y_hat in {0, 1} \(Benign/Trojan\)) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000006541 00000 n 
+0000006611 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+6686
+%%EOF
