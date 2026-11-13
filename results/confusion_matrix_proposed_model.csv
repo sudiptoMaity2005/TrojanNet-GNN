@@ -1,0 +1,8 @@
+Metric,Count_Mean,Count_Std,Rate_Pct
+True Negatives (TN),1467284.2,7523.9,98.65%
+False Positives (FP),20077.8,7523.9,1.35%
+False Negatives (FN),1385.6,31.8,83.12%
+True Positives (TP),281.4,31.8,16.88%
+Total Benign,1487362.0,-,100.0%
+Total Trojans,1667.0,-,100.0%
+Total Gates,1489029.0,-,100.0%
