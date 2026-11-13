@@ -61,6 +61,11 @@ The framework is evaluated under a strict **Leave-One-Circuit-Out (LOCO) Cross-F
 
 A complete per-circuit breakdown with exact gate counts, Trojan gate counts, and verified hierarchical netlist names is cataloged in [`data/benchmark_circuits_catalog.csv`](data/benchmark_circuits_catalog.csv).
 
+The complete dataset of all 108 benchmark circuits (graph node features, topology edges, and ground-truth Trojan labels across all 13 families) is packaged in [`data/benchmark_circuits_108.zip`](data/benchmark_circuits_108.zip) (29.8 MB). To unpack the datasets for local training/evaluation:
+```bash
+unzip data/benchmark_circuits_108.zip
+```
+
 ---
 
 ## 🧮 Behavioral Feature Formulation ($f_1$ – $f_8$)
@@ -122,7 +127,8 @@ Averaged across all 5 seeds on the entire 108-circuit catalog (**1,489,029 gates
 ```
 TrojanNet-GNN/
 ├── data/
-│   └── benchmark_circuits_catalog.csv   # Catalog of all 108 evaluated circuits with gate counts
+│   ├── benchmark_circuits_catalog.csv   # Catalog of all 108 evaluated circuits with gate counts
+│   └── benchmark_circuits_108.zip       # Complete unified graph dataset for all 108 benchmark circuits (29.8 MB)
 ├── docs/
 │   ├── ANSWERS_TO_OPEN_QUESTIONS_A1_A5.md  # Detailed technical response to review questions
 │   ├── RESPONSE_TO_REVIEWERS_TECHNICAL_ANSWERS.md # Point-by-point reviewer rebuttal

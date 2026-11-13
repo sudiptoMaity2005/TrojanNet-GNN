@@ -22,6 +22,7 @@ Thumbs.db
 
 # Large temporary archives and packages
 *.zip
+!data/benchmark_circuits_108.zip
 *.tar.gz
 *.tgz
 *.rar
