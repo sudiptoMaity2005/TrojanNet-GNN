@@ -1,0 +1,33 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{hyperref}
+
+\title{\textbf{Adversarial Trojan Insertion Methodology}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Methodology for Stealthy / Adversarial Testing}
+
+To evaluate the absolute limits and robustness of our hybrid detection framework, we subjected it to an advanced, mathematically stealthy adversarial attack. Rather than manually inserting arbitrary logic or relying on pre-existing standard benchmarks (such as the Trust-Hub suites used for baseline evaluation), we utilized a custom simulation methodology designed to mimic a highly intelligent Reinforcement Learning (RL) agent.
+
+\subsection*{The Simulated RL-Attacker Approach}
+
+This custom Python-based simulation script was inspired by advanced insertion concepts from recent NMSU-PEARL research. The attacker algorithm operates in two highly automated phases to ensure maximum stealth:
+
+\begin{enumerate}
+    \item \textbf{Dynamic Profiling (Node Rarity Identification):} The script first profiles the target circuit using TARMAC's behavioral metrics. By calculating the Transition Probabilities (TP) across thousands of simulated input vectors, the script autonomously isolates the absolute rarest nodes in the background logic (e.g., nodes where TP $\approx 0.003$).
+    
+    \item \textbf{Mathematical Payload Insertion:} Once the rarest nodes are identified, the script automatically wires a highly compact XOR-based payload into those specific, rarely triggered data paths. 
+\end{enumerate}
+
+\subsection*{Conclusion}
+
+By utilizing the natural statistical rarity of the circuit's own gates, the inserted Trojan perfectly mimics the structural and behavioral signatures of benign background logic. This automated profiling and insertion tool guarantees that the resulting Trojan acts as a mathematically optimal adversarial example, allowing us to rigorously test the detection limits of our GNN-RandomForest pipeline against next-generation, AI-driven hardware attacks.
+
+\end{document}

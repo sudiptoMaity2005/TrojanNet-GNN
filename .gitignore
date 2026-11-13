@@ -62,3 +62,9 @@ datasets_for_gnn_extracted/
 
 # Ignore loose root CSVs (canonical results are in results/ and data/)
 /*.csv
+
+# Temporary extracted text and reviewer working files
+extracted_*.txt
+response-to-reviewers*.pdf
+developer_task_list.pdf
+

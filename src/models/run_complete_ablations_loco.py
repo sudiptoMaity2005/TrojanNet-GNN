@@ -1,23 +1,8 @@
-#!/usr/bin/env python3
-"""
-Complete Ablation Suite for Hardware Trojan Detection (Task B2)
-Covers all Reviewer 1 & 2 requested ablation configurations:
-1. Representations: raw_8, emb_15, hybrid_23
-2. Architecture: no_jumping_knowledge, no_residual
-3. Loss function: plain_cross_entropy (unweighted vs weighted)
-4. Tree weights: no_tree_weights (unweighted vs balanced)
-5. Tree depth: depth_1, depth_2, depth_4, depth_5
-6. Feature drop: drop each individual feature & correlated groups
-7. Extra Trees feature importances exported to CSV
-Strict cross-family LOCO protocol across 13 folds and 5 seeds.
-Feature f2 is strictly set to 0.0 (reference-free).
-"""
-
 import os
 import glob
 import time
-import argparse
 import random
+import argparse
 import pandas as pd
 import numpy as np
 import torch
@@ -31,23 +16,13 @@ from sklearn.metrics import (
     balanced_accuracy_score, matthews_corrcoef, average_precision_score,
     confusion_matrix, fbeta_score
 )
-from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
-from xgboost import XGBClassifier
+from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
 
 INVERTED_RS232_VARIANTS = {
-    'RS232_T1000_180nm', 'RS232_T1000_90nm',
-    'RS232_T1100_180nm', 'RS232_T1100_90nm',
-    'RS232_T1200_180nm', 'RS232_T1200_90nm',
-    'RS232_T1300_180nm', 'RS232_T1300_90nm',
-    'RS232_T1400_180nm', 'RS232_T1400_90nm',
-    'RS232_T1500_180nm', 'RS232_T1500_90nm',
-    'RS232_T1600_180nm', 'RS232_T1600_90nm',
-    'RS232_T1700_180nm_scan', 'RS232_T1700_90nm_scan',
-    'RS232_T1800_180nm_scan', 'RS232_T1800_90nm_scan',
-    'RS232_T1900_180nm_scan', 'RS232_T1900_90nm_scan',
-    'RS232_T2000_180nm_scan', 'RS232_T2000_90nm_scan'
+    'RS232-T100', 'RS232-T200', 'RS232-T300', 'RS232-T400', 'RS232-T500',
+    'RS232-T600', 'RS232-T700', 'RS232-T800', 'RS232-T900', 'RS232-T901'
 }
 
 def set_seed(seed):
@@ -156,7 +131,7 @@ def load_all_graphs(folder_path=".", exclude_inverted_rs232=True):
             edge_index = torch.tensor([src_indices, dst_indices], dtype=torch.long) if src_indices else torch.empty((2, 0), dtype=torch.long)
             graph = Data(x=x, edge_index=edge_index, y=y)
             graph.circuit_name = c_name
-            graph.node_names = node_names
+            # Note: Do not attach python list node_names to Data to avoid DataLoader collation conflicts
             graphs.append(graph)
         except Exception:
             continue
@@ -251,10 +226,46 @@ def evaluate_predictions(y_true, y_pred, y_proba):
     tn, fp, fn, tp = cm.ravel()
     return acc, bal_acc, prec, rec, f1, mcc, pr_auc, int(tp), int(fp), int(tn), int(fn)
 
+def train_gnn_model(train_graphs, device, in_dim, use_jk=True, use_residual=True, weighted_ce=True, epochs=40):
+    gnn = ConfigurableGNN(in_dim, 32, 15, use_jk=use_jk, use_residual=use_residual).to(device)
+    optimizer = torch.optim.Adam(gnn.parameters(), lr=0.005)
+
+    tot_nodes = sum(g.num_nodes for g in train_graphs)
+    tot_ht = sum(g.y.sum().item() for g in train_graphs)
+    pos_wt = (tot_nodes - tot_ht) / max(1, tot_ht)
+
+    if weighted_ce:
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor([1.0, pos_wt], dtype=torch.float).to(device))
+    else:
+        criterion = nn.CrossEntropyLoss()
+
+    loader = DataLoader(train_graphs, batch_size=4, shuffle=True, exclude_keys=['node_names', 'circuit_name'])
+    gnn.train()
+    for _ in range(epochs):
+        for batch in loader:
+            batch = batch.to(device)
+            optimizer.zero_grad()
+            loss = criterion(gnn(batch.x, batch.edge_index), batch.y)
+            loss.backward()
+            optimizer.step()
+    return gnn
+
+def extract_features(gnn, graphs, device):
+    gnn.eval()
+    X_list, y_list = [], []
+    with torch.no_grad():
+        for g in graphs:
+            g_dev = g.clone().to(device)
+            X_list.append(gnn.extract_embeddings(g_dev.x, g_dev.edge_index).cpu())
+            y_list.append(g_dev.y.cpu())
+    X = torch.cat(X_list).numpy()
+    y = torch.cat(y_list).numpy()
+    return X, y
+
 def main():
-    parser = argparse.ArgumentParser(description="Task B2 Complete Ablations")
-    parser.add_argument("--epochs", type=int, default=40)
+    parser = argparse.ArgumentParser(description="Task B2 Complete Reviewer Ablations (Strict LOCO)")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--epochs", type=int, default=40)
     parser.add_argument("--out_csv", type=str, default="ablation_complete_raw.csv")
     parser.add_argument("--fi_csv", type=str, default="extratrees_feature_importances.csv")
     args = parser.parse_args()
@@ -269,144 +280,154 @@ def main():
     family_dict = defaultdict(list)
     for c_name, g in unique_circuits.items():
         fam = determine_family(c_name)
-        family_dict[fam].append(g)
+        if fam != 'unknown':
+            family_dict[fam].append(g)
 
-    target_families = sorted(list(family_dict.keys()))
+    target_families = ['AES', 'RS232', 'b19', 'EthernetMAC10GE', 'wb_conmax', 'c2670', 'c3540', 'c5315', 'c6288', 's13207', 's1423', 's15850', 's35932']
+    core_train_families = ['RS232', 'c2670', 'c3540', 'c5315', 'c6288', 's13207', 's1423', 's15850', 's35932']
     seeds = [42, 123, 2024, 7, 999]
 
-    # Feature definitions for slices (8 raw features)
     feature_names = [f"f{i+1}" for i in range(8)] + [f"emb_{j+1}" for j in range(15)]
     all_results = []
     fi_records = []
+    completed_runs = set()
+
+    # Checkpoint resumption
+    if os.path.exists(args.out_csv):
+        try:
+            df_prev = pd.read_csv(args.out_csv)
+            all_results = df_prev.to_dict('records')
+            for _, r in df_prev.iterrows():
+                completed_runs.add((int(r['Seed']), str(r['Family']), str(r['Config']), str(r['Circuit'])))
+            print(f"[Checkpoint] Resuming from {args.out_csv} with {len(all_results)} existing records.")
+        except Exception as e:
+            print(f"Could not load checkpoint: {e}")
 
     for seed in seeds:
-        print(f"\n==================== SEED {seed} ====================")
+        print(f"\n{'='*75}")
+        print(f"TASK B2 ABLATION — SEED {seed} ({seeds.index(seed)+1}/{len(seeds)})")
+        print(f"{'='*75}")
         set_seed(seed)
 
         for test_family in target_families:
+            if test_family not in family_dict or len(family_dict[test_family]) == 0:
+                continue
+
             test_graphs = family_dict[test_family]
-            train_graphs = [g for fam, g_list in family_dict.items() if fam != test_family for g in g_list]
+            train_graphs = []
+            for fam in core_train_families:
+                if fam != test_family and fam in family_dict:
+                    train_graphs.extend(family_dict[fam])
+
             if len(train_graphs) == 0:
                 continue
 
-            # Standard GNN training
+            print(f"\n>>> Fold: Test on {test_family} ({len(test_graphs)} circuits) | Seed {seed}")
             in_dim = train_graphs[0].x.shape[1]
-            gnn = ConfigurableGNN(in_dim, 32, 15, use_jk=True, use_residual=True).to(device)
-            optimizer = torch.optim.Adam(gnn.parameters(), lr=0.005)
 
-            tot_nodes = sum(g.num_nodes for g in train_graphs)
-            tot_ht = sum(g.y.sum().item() for g in train_graphs)
-            pos_wt = (tot_nodes - tot_ht) / max(1, tot_ht)
-            crit_weighted = nn.CrossEntropyLoss(weight=torch.tensor([1.0, pos_wt], dtype=torch.float).to(device))
+            # -------------------------------------------------------------
+            # Standard GNN: used for Representation, Weights, Depth, Drops
+            # -------------------------------------------------------------
+            gnn_std = train_gnn_model(train_graphs, device, in_dim, use_jk=True, use_residual=True, weighted_ce=True, epochs=args.epochs)
+            X_tr, y_tr = extract_features(gnn_std, train_graphs, device)
 
-            loader = DataLoader(train_graphs, batch_size=4, shuffle=True)
-            gnn.train()
-            for epoch in range(args.epochs):
-                for batch in loader:
-                    batch = batch.to(device)
-                    optimizer.zero_grad()
-                    loss = crit_weighted(gnn(batch.x, batch.edge_index), batch.y)
-                    loss.backward()
-                    optimizer.step()
-
-            # Extract standard 23-D embeddings
-            gnn.eval()
-            X_tr, y_tr = [], []
-            with torch.no_grad():
-                for g in train_graphs:
-                    g_dev = g.clone().to(device)
-                    X_tr.append(gnn.extract_embeddings(g_dev.x, g_dev.edge_index).cpu())
-                    y_tr.append(g_dev.y.cpu())
-            X_tr = torch.cat(X_tr).numpy()
-            y_tr = torch.cat(y_tr).numpy()
-
-            test_data = {}
+            test_data_std = {}
             with torch.no_grad():
                 for g in test_graphs:
                     g_dev = g.clone().to(device)
-                    emb = gnn.extract_embeddings(g_dev.x, g_dev.edge_index).cpu().numpy()
-                    test_data[g.circuit_name] = (emb, g.y.numpy())
+                    emb = gnn_std.extract_embeddings(g_dev.x, g_dev.edge_index).cpu().numpy()
+                    test_data_std[g.circuit_name] = (emb, g.y.numpy())
 
             X_tr_sub, X_val, y_tr_sub, y_val = train_test_split(
                 X_tr, y_tr, test_size=0.15, stratify=y_tr, random_state=seed
             )
 
-            # ---------------------------------------------------------
-            # 1. Feature Representation Ablations: raw_8, emb_15, hybrid_23
-            # ---------------------------------------------------------
+            # 1. Feature Representation Ablations: raw_8, emb_15, hybrid
             repr_configs = {
                 "raw_8": list(range(8)),
                 "emb_15": list(range(8, 23)),
-                "hybrid_23": list(range(23))
+                "hybrid": list(range(23))
             }
             for rep_name, idxs in repr_configs.items():
+                needed = any((seed, test_family, rep_name, cg.circuit_name) not in completed_runs for cg in test_graphs)
+                if not needed:
+                    continue
                 clf = ExtraTreesClassifier(n_estimators=50, class_weight="balanced", random_state=seed, n_jobs=-1)
                 clf.fit(X_tr_sub[:, idxs], y_tr_sub)
 
-                if rep_name == "hybrid_23":
+                if rep_name == "hybrid":
                     for fn, imp in zip(feature_names, clf.feature_importances_):
                         fi_records.append({"Seed": seed, "Fold": test_family, "Feature": fn, "Importance": imp})
 
                 val_p = clf.predict_proba(X_val[:, idxs])[:, 1]
                 t_best, _ = find_best_threshold(y_val, val_p)
 
-                for c_name, (X_te, y_te) in test_data.items():
+                for c_name, (X_te, y_te) in test_data_std.items():
+                    run_key = (seed, test_family, rep_name, c_name)
+                    if run_key in completed_runs:
+                        continue
                     p = clf.predict_proba(X_te[:, idxs])[:, 1]
                     pred = (p >= t_best).astype(int)
-                    metrics = evaluate_predictions(y_te, pred, p)
+                    m = evaluate_predictions(y_te, pred, p)
                     all_results.append({
                         "Seed": seed, "Family": test_family, "Circuit": c_name,
                         "Ablation_Category": "Representation", "Config": rep_name,
-                        "Model": "ExtraTrees", "Accuracy": metrics[0], "Balanced_Accuracy": metrics[1],
-                        "Precision": metrics[2], "Recall": metrics[3], "F1_Score": metrics[4],
-                        "MCC": metrics[5], "PR_AUC": metrics[6],
-                        "TP": metrics[7], "FP": metrics[8], "TN": metrics[9], "FN": metrics[10]
+                        "Model": "ExtraTrees", "Accuracy": m[0], "Balanced_Accuracy": m[1],
+                        "Precision": m[2], "Recall": m[3], "F1_Score": m[4], "MCC": m[5], "PR_AUC": m[6],
+                        "TP": m[7], "FP": m[8], "TN": m[9], "FN": m[10]
                     })
+                    completed_runs.add(run_key)
 
-            # ---------------------------------------------------------
-            # 2. Tree Weight Ablation: no_tree_weights (unweighted)
-            # ---------------------------------------------------------
-            clf_unweighted = ExtraTreesClassifier(n_estimators=50, class_weight=None, random_state=seed, n_jobs=-1)
-            clf_unweighted.fit(X_tr_sub, y_tr_sub)
-            val_p = clf_unweighted.predict_proba(X_val)[:, 1]
-            t_best, _ = find_best_threshold(y_val, val_p)
-            for c_name, (X_te, y_te) in test_data.items():
-                p = clf_unweighted.predict_proba(X_te)[:, 1]
-                pred = (p >= t_best).astype(int)
-                metrics = evaluate_predictions(y_te, pred, p)
-                all_results.append({
-                    "Seed": seed, "Family": test_family, "Circuit": c_name,
-                    "Ablation_Category": "Weighting", "Config": "no_tree_weights",
-                    "Model": "ExtraTrees", "Accuracy": metrics[0], "Balanced_Accuracy": metrics[1],
-                    "Precision": metrics[2], "Recall": metrics[3], "F1_Score": metrics[4],
-                    "MCC": metrics[5], "PR_AUC": metrics[6],
-                    "TP": metrics[7], "FP": metrics[8], "TN": metrics[9], "FN": metrics[10]
-                })
+            # 2. Tree Weight Ablation: no_tree_weights
+            needed = any((seed, test_family, "no_tree_weights", cg.circuit_name) not in completed_runs for cg in test_graphs)
+            if needed:
+                clf_unweighted = ExtraTreesClassifier(n_estimators=50, class_weight=None, random_state=seed, n_jobs=-1)
+                clf_unweighted.fit(X_tr_sub, y_tr_sub)
+                val_p = clf_unweighted.predict_proba(X_val)[:, 1]
+                t_best, _ = find_best_threshold(y_val, val_p)
+                for c_name, (X_te, y_te) in test_data_std.items():
+                    run_key = (seed, test_family, "no_tree_weights", c_name)
+                    if run_key in completed_runs:
+                        continue
+                    p = clf_unweighted.predict_proba(X_te)[:, 1]
+                    pred = (p >= t_best).astype(int)
+                    m = evaluate_predictions(y_te, pred, p)
+                    all_results.append({
+                        "Seed": seed, "Family": test_family, "Circuit": c_name,
+                        "Ablation_Category": "Weighting", "Config": "no_tree_weights",
+                        "Model": "ExtraTrees", "Accuracy": m[0], "Balanced_Accuracy": m[1],
+                        "Precision": m[2], "Recall": m[3], "F1_Score": m[4], "MCC": m[5], "PR_AUC": m[6],
+                        "TP": m[7], "FP": m[8], "TN": m[9], "FN": m[10]
+                    })
+                    completed_runs.add(run_key)
 
-            # ---------------------------------------------------------
             # 3. Tree Depth Ablations: depth_1, depth_2, depth_4, depth_5
-            # ---------------------------------------------------------
             for depth in [1, 2, 4, 5]:
+                cfg_name = f"depth_{depth}"
+                needed = any((seed, test_family, cfg_name, cg.circuit_name) not in completed_runs for cg in test_graphs)
+                if not needed:
+                    continue
                 clf_depth = ExtraTreesClassifier(n_estimators=50, max_depth=depth, class_weight="balanced", random_state=seed, n_jobs=-1)
                 clf_depth.fit(X_tr_sub, y_tr_sub)
                 val_p = clf_depth.predict_proba(X_val)[:, 1]
                 t_best, _ = find_best_threshold(y_val, val_p)
-                for c_name, (X_te, y_te) in test_data.items():
+                for c_name, (X_te, y_te) in test_data_std.items():
+                    run_key = (seed, test_family, cfg_name, c_name)
+                    if run_key in completed_runs:
+                        continue
                     p = clf_depth.predict_proba(X_te)[:, 1]
                     pred = (p >= t_best).astype(int)
-                    metrics = evaluate_predictions(y_te, pred, p)
+                    m = evaluate_predictions(y_te, pred, p)
                     all_results.append({
                         "Seed": seed, "Family": test_family, "Circuit": c_name,
-                        "Ablation_Category": "Tree_Depth", "Config": f"depth_{depth}",
-                        "Model": "ExtraTrees", "Accuracy": metrics[0], "Balanced_Accuracy": metrics[1],
-                        "Precision": metrics[2], "Recall": metrics[3], "F1_Score": metrics[4],
-                        "MCC": metrics[5], "PR_AUC": metrics[6],
-                        "TP": metrics[7], "FP": metrics[8], "TN": metrics[9], "FN": metrics[10]
+                        "Ablation_Category": "Tree_Depth", "Config": cfg_name,
+                        "Model": "ExtraTrees", "Accuracy": m[0], "Balanced_Accuracy": m[1],
+                        "Precision": m[2], "Recall": m[3], "F1_Score": m[4], "MCC": m[5], "PR_AUC": m[6],
+                        "TP": m[7], "FP": m[8], "TN": m[9], "FN": m[10]
                     })
+                    completed_runs.add(run_key)
 
-            # ---------------------------------------------------------
             # 4. Feature Drop & Correlated Group Ablations
-            # ---------------------------------------------------------
             feature_drops = {
                 "drop_f1": [0],
                 "drop_f3": [2],
@@ -415,42 +436,94 @@ def main():
                 "drop_f6": [5],
                 "drop_f7": [6],
                 "drop_f8": [7],
-                "drop_group_TP": [0, 2, 3],       # Transition probability group
-                "drop_group_Degree": [6, 7],       # Fan-in and Fan-out group
-                "drop_group_Complexity": [4, 5]    # Neighbor delta and LZ group
+                "drop_group_TP": [0, 2, 3],
+                "drop_group_Degree": [6, 7],
+                "drop_group_Complexity": [4, 5]
             }
             for drop_name, drop_cols in feature_drops.items():
+                needed = any((seed, test_family, drop_name, cg.circuit_name) not in completed_runs for cg in test_graphs)
+                if not needed:
+                    continue
                 keep_cols = [c for c in range(23) if c not in drop_cols]
                 clf_drop = ExtraTreesClassifier(n_estimators=50, class_weight="balanced", random_state=seed, n_jobs=-1)
                 clf_drop.fit(X_tr_sub[:, keep_cols], y_tr_sub)
                 val_p = clf_drop.predict_proba(X_val[:, keep_cols])[:, 1]
                 t_best, _ = find_best_threshold(y_val, val_p)
-                for c_name, (X_te, y_te) in test_data.items():
+                for c_name, (X_te, y_te) in test_data_std.items():
+                    run_key = (seed, test_family, drop_name, c_name)
+                    if run_key in completed_runs:
+                        continue
                     p = clf_drop.predict_proba(X_te[:, keep_cols])[:, 1]
                     pred = (p >= t_best).astype(int)
-                    metrics = evaluate_predictions(y_te, pred, p)
+                    m = evaluate_predictions(y_te, pred, p)
                     all_results.append({
                         "Seed": seed, "Family": test_family, "Circuit": c_name,
                         "Ablation_Category": "Feature_Drop", "Config": drop_name,
-                        "Model": "ExtraTrees", "Accuracy": metrics[0], "Balanced_Accuracy": metrics[1],
-                        "Precision": metrics[2], "Recall": metrics[3], "F1_Score": metrics[4],
-                        "MCC": metrics[5], "PR_AUC": metrics[6],
-                        "TP": metrics[7], "FP": metrics[8], "TN": metrics[9], "FN": metrics[10]
+                        "Model": "ExtraTrees", "Accuracy": m[0], "Balanced_Accuracy": m[1],
+                        "Precision": m[2], "Recall": m[3], "F1_Score": m[4], "MCC": m[5], "PR_AUC": m[6],
+                        "TP": m[7], "FP": m[8], "TN": m[9], "FN": m[10]
                     })
+                    completed_runs.add(run_key)
 
-    # Save results
+            # -------------------------------------------------------------
+            # 5. Architecture & Loss Ablations: no_jk, no_residual, plain_cross_entropy
+            # -------------------------------------------------------------
+            arch_variants = [
+                ("Architecture", "no_jk", False, True, True),
+                ("Architecture", "no_residual", True, False, True),
+                ("Loss_Function", "plain_cross_entropy", True, True, False)
+            ]
+            for cat_name, cfg_name, u_jk, u_res, w_ce in arch_variants:
+                needed = any((seed, test_family, cfg_name, cg.circuit_name) not in completed_runs for cg in test_graphs)
+                if not needed:
+                    continue
+                gnn_var = train_gnn_model(train_graphs, device, in_dim, use_jk=u_jk, use_residual=u_res, weighted_ce=w_ce, epochs=args.epochs)
+                X_tr_v, y_tr_v = extract_features(gnn_var, train_graphs, device)
+
+                X_tr_sub_v, X_val_v, y_tr_sub_v, y_val_v = train_test_split(
+                    X_tr_v, y_tr_v, test_size=0.15, stratify=y_tr_v, random_state=seed
+                )
+
+                clf_var = ExtraTreesClassifier(n_estimators=50, class_weight="balanced", random_state=seed, n_jobs=-1)
+                clf_var.fit(X_tr_sub_v, y_tr_sub_v)
+                val_p = clf_var.predict_proba(X_val_v)[:, 1]
+                t_best, _ = find_best_threshold(y_val_v, val_p)
+
+                with torch.no_grad():
+                    for cg in test_graphs:
+                        run_key = (seed, test_family, cfg_name, cg.circuit_name)
+                        if run_key in completed_runs:
+                            continue
+                        g_dev = cg.clone().to(device)
+                        emb_test = gnn_var.extract_embeddings(g_dev.x, g_dev.edge_index).cpu().numpy()
+                        p = clf_var.predict_proba(emb_test)[:, 1]
+                        pred = (p >= t_best).astype(int)
+                        m = evaluate_predictions(cg.y.numpy(), pred, p)
+                        all_results.append({
+                            "Seed": seed, "Family": test_family, "Circuit": cg.circuit_name,
+                            "Ablation_Category": cat_name, "Config": cfg_name,
+                            "Model": "ExtraTrees", "Accuracy": m[0], "Balanced_Accuracy": m[1],
+                            "Precision": m[2], "Recall": m[3], "F1_Score": m[4], "MCC": m[5], "PR_AUC": m[6],
+                            "TP": m[7], "FP": m[8], "TN": m[9], "FN": m[10]
+                        })
+                        completed_runs.add(run_key)
+
+            # Auto-save checkpoint after each fold
+            pd.DataFrame(all_results).to_csv(args.out_csv, index=False)
+
+    # Final summary export
     df_res = pd.DataFrame(all_results)
     df_res.to_csv(args.out_csv, index=False)
-    print(f"Ablation results saved to: {args.out_csv} ({len(df_res)} rows)")
+    print(f"\n[DONE] Master Ablation CSV saved: {args.out_csv} ({len(df_res)} rows)")
 
-    df_fi = pd.DataFrame(fi_records)
-    df_fi.to_csv(args.fi_csv, index=False)
-    print(f"Extra Trees feature importances saved to: {args.fi_csv} ({len(df_fi)} rows)")
+    if fi_records:
+        df_fi = pd.DataFrame(fi_records)
+        df_fi.to_csv(args.fi_csv, index=False)
+        print(f"[DONE] Feature importances saved: {args.fi_csv} ({len(df_fi)} rows)")
 
     summary = df_res.groupby(["Ablation_Category", "Config"])[["Accuracy", "Balanced_Accuracy", "Precision", "Recall", "F1_Score", "MCC", "PR_AUC"]].mean().reset_index()
     summary.to_csv("ablation_complete_summary.csv", index=False)
-    print("Ablation summary saved to: ablation_complete_summary.csv")
+    print(f"[DONE] Summary table saved: ablation_complete_summary.csv")
 
 if __name__ == "__main__":
     main()
-
