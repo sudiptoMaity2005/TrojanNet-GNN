@@ -128,13 +128,21 @@ Averaged across all 5 seeds on the entire 108-circuit catalog (**1,489,029 gates
 TrojanNet-GNN/
 ├── data/
 │   ├── benchmark_circuits_catalog.csv   # Catalog of all 108 evaluated circuits with gate counts
-│   └── benchmark_circuits_108.zip       # Complete unified graph dataset for all 108 benchmark circuits (29.8 MB)
-├── docs/
-│   ├── ANSWERS_TO_OPEN_QUESTIONS_A1_A5.md  # Detailed technical response to review questions
-│   ├── RESPONSE_TO_REVIEWERS_TECHNICAL_ANSWERS.md # Point-by-point reviewer rebuttal
-│   ├── response-to-reviewers.pdf        # Compiled response PDF
-│   └── reviewer_response_complete.tex   # LaTeX source for revision documents
-├── results/
+│   ├── benchmark_circuits_108.zip       # Complete unified graph dataset for all 108 benchmark circuits (29.8 MB)
+│   └── patterns/                        # Fixed simulation input patterns
+├── docs/                                # Response documents, rebuttal LaTeX, and technical reports
+│   ├── ANSWERS_TO_OPEN_QUESTIONS_A1_A5.md
+│   ├── RESPONSE_TO_REVIEWERS_TECHNICAL_ANSWERS.md
+│   ├── reviewer_response_complete.tex
+│   ├── response-to-reviewers.pdf
+│   ├── developer_task_list.pdf
+│   ├── Adversarial_Testing_Methodology.pdf
+│   └── ...
+├── figures/                             # High-resolution vector PDF diagrams & visualizations
+│   ├── fig_proposed_methodology.pdf
+│   ├── fig_transition_probabilities.pdf
+│   └── htpipe.pdf
+├── results/                             # Complete raw CSV logs, metrics, summaries, and confusion matrix
 │   ├── strict_loco/
 │   │   ├── strict_loco_all_6classifiers_raw.csv # Master 3,240-row LOCO raw evaluation CSV
 │   │   ├── strict_loco_summary.csv              # 5-seed Mean ± Std summary across 6 classifiers
@@ -150,20 +158,31 @@ TrojanNet-GNN/
 │   ├── confusion_matrix_proposed_model.pdf # Vector confusion matrix for LaTeX
 │   ├── rs232_trojan_nodes_with_verdict.csv # Trust-Hub verified positive gates in RS232
 │   ├── Table_S3_correlation.csv         # Clean 7x7 Pearson feature correlation matrix
-│   ├── Table_S4_pca.csv                 # Clean 7-component PCA variance decomposition
-│   └── htpipe.pdf                       # Vector pipeline architecture diagram (Fig. 2)
-├── src/
-│   ├── data_preparation/               # Feature extraction and netlist graph builders
+│   └── Table_S4_pca.csv                 # Clean 7-component PCA variance decomposition
+├── scripts/                             # Reproduction, analysis, and plotting scripts
+│   ├── generate_confusion_matrix.py     # Reproduces confusion matrix PNG/PDF from raw logs
+│   ├── generate_fig3_loco.py            # Reproduces Figure 3 LOCO trade-off curve
+│   ├── compute_per_family_tp_statistics.py # Computes transition probability statistics
+│   └── run_iscas_stimulus_sensitivity_100k.py # Evaluates stimulus sensitivity across 1k-100k
+├── src/                                 # Modular framework source code
+│   ├── data_preparation/                # Feature extraction and netlist graph builders
 │   │   ├── aes_pipeline.py              # AES netlist behavioral simulation & feature extractor
 │   │   ├── rs232_pipeline.py            # RS232 netlist feature pipeline
 │   │   ├── b19_pipeline.py              # ITC-99 b19 processor pipeline
 │   │   ├── ethernet_pipeline.py         # 10GE Ethernet MAC pipeline
-│   │   └── wb_conmax_pipeline.py        # Wishbone interconnect pipeline
-│   └── models/                          # GNN and downstream ensemble classifiers
-│       ├── run_strict_loco_6classifiers.py # Strict cross-family LOCO across 13 families & 5 seeds
-│       ├── run_complete_ablations_loco.py  # Complete Reviewer 1 & 2 ablation suite
-│       └── run_mondal_rare_net.py       # Mondal et al. [15] baseline evaluation
+│   │   ├── wb_conmax_pipeline.py        # Wishbone interconnect pipeline
+│   │   ├── parser.py                    # Netlist structural gate parser
+│   │   └── simulator.py                 # Logic simulation engine
+│   ├── models/                          # GNN and downstream ensemble classifiers
+│   │   ├── run_strict_loco_6classifiers.py # Strict cross-family LOCO across 13 families & 5 seeds
+│   │   ├── run_complete_ablations_loco.py  # Complete Reviewer 1 & 2 ablation suite
+│   │   └── run_mondal_rare_net.py       # Mondal et al. [15] baseline evaluation
+│   └── utils/                           # Verification and label audit utilities
+│       ├── check_labels.py              # Label alignment check
+│       └── ultimate_check.py            # Dataset completeness validation
+├── TARMAC_trigger_activation/           # Baseline TARMAC trigger activation tool
 ├── requirements.txt                     # Python dependencies
+├── LICENSE                              # MIT License
 └── README.md
 ```
 

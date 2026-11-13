@@ -68,6 +68,13 @@ def load_all_graphs(folder_path=".", exclude_inverted_rs232=True):
                 x_std = data.x.std(dim=0, unbiased=False, keepdim=True) + 1e-8
                 data.x = (data.x - x_mean) / x_std
             data.circuit_name = c_name
+            # Strip any node_names attribute to prevent DataLoader collation KeyError
+            if hasattr(data, 'node_names'):
+                delattr(data, 'node_names')
+            try:
+                del data.node_names
+            except Exception:
+                pass
             if not hasattr(data, 'y') or data.y is None:
                 data.y = torch.zeros(data.x.shape[0], dtype=torch.long)
             graphs.append(data)
@@ -303,6 +310,17 @@ def main():
         except Exception as e:
             print(f"Could not load checkpoint: {e}")
 
+    # Global model cache to avoid duplicate training when training sets are identical
+    gnn_cache = {}
+
+    def get_or_train_gnn(tr_graphs, dev, dim, u_jk, u_res, w_ce, n_epochs, cur_seed):
+        tr_key = (cur_seed, tuple(sorted(g.circuit_name for g in tr_graphs)), u_jk, u_res, w_ce)
+        if tr_key not in gnn_cache:
+            m = train_gnn_model(tr_graphs, dev, dim, use_jk=u_jk, use_residual=u_res, weighted_ce=w_ce, epochs=n_epochs)
+            X, y = extract_features(m, tr_graphs, dev)
+            gnn_cache[tr_key] = (m, X, y)
+        return gnn_cache[tr_key]
+
     for seed in seeds:
         print(f"\n{'='*75}")
         print(f"TASK B2 ABLATION — SEED {seed} ({seeds.index(seed)+1}/{len(seeds)})")
@@ -328,8 +346,7 @@ def main():
             # -------------------------------------------------------------
             # Standard GNN: used for Representation, Weights, Depth, Drops
             # -------------------------------------------------------------
-            gnn_std = train_gnn_model(train_graphs, device, in_dim, use_jk=True, use_residual=True, weighted_ce=True, epochs=args.epochs)
-            X_tr, y_tr = extract_features(gnn_std, train_graphs, device)
+            gnn_std, X_tr, y_tr = get_or_train_gnn(train_graphs, device, in_dim, u_jk=True, u_res=True, w_ce=True, n_epochs=args.epochs, cur_seed=seed)
 
             test_data_std = {}
             with torch.no_grad():
@@ -477,8 +494,7 @@ def main():
                 needed = any((seed, test_family, cfg_name, cg.circuit_name) not in completed_runs for cg in test_graphs)
                 if not needed:
                     continue
-                gnn_var = train_gnn_model(train_graphs, device, in_dim, use_jk=u_jk, use_residual=u_res, weighted_ce=w_ce, epochs=args.epochs)
-                X_tr_v, y_tr_v = extract_features(gnn_var, train_graphs, device)
+                gnn_var, X_tr_v, y_tr_v = get_or_train_gnn(train_graphs, device, in_dim, u_jk=u_jk, u_res=u_res, w_ce=w_ce, n_epochs=args.epochs, cur_seed=seed)
 
                 X_tr_sub_v, X_val_v, y_tr_sub_v, y_val_v = train_test_split(
                     X_tr_v, y_tr_v, test_size=0.15, stratify=y_tr_v, random_state=seed

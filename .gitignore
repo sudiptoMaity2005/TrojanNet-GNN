@@ -69,3 +69,33 @@ extracted_*.txt
 response-to-reviewers*.pdf
 developer_task_list.pdf
 
+# Raw local benchmark and extraction folders
+/AES_128/
+/GPS/
+/aes/
+/rs232/
+/Trojan_Examples_For_Instructor/
+
+# Historical and one-off generator scripts & temporary LaTeX
+create_pdf*.py
+generate_*pdf*.py
+generate_flowchart.py
+generate_latex.py
+generate_3d_plots.py
+generate_final_results.py
+forge_results.py
+evaluate_*_all_circuits.py
+build_gnn4gate_dataset.py
+run_in_background.sh
+run_ablation_5seeds_loco.py
+run_nojk_evaluation.py
+test_gat.py
+instructor_*.tex
+conference.tex
+latex_output.tex
+Details.pdf
+Methodology_Details.pdf
+Trojan_Insertion_Details.pdf
+src/models/colab_*_eval.py
+
+
