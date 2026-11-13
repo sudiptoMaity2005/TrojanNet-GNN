@@ -86,6 +86,37 @@ Verification matrices:
 
 ---
 
+## 📊 Empirical Results (Strict Cross-Family LOCO, 5 Seeds)
+
+Evaluated across all **108 circuits** and **5 random seeds** (`42, 123, 2024, 7, 999`) under the autonomous reference-free protocol ($f_2 \equiv 0.0$):
+
+| Model | Macro $F_1$ Score | Macro Recall | Macro Precision | Balanced Accuracy |
+| :--- | :---: | :---: | :---: | :---: |
+| **Proposed Hybrid GNN + Extra Trees** | **$6.81 \pm 0.81\%$** | **$18.73 \pm 1.89\%$** | **$5.95 \pm 0.86\%$** | **$56.56 \pm 1.58\%$** |
+| Random Forest (Hybrid) | $5.96 \pm 0.81\%$ | $16.49 \pm 2.95\%$ | $6.32 \pm 1.81\%$ | $55.53 \pm 0.92\%$ |
+| CatBoost (Hybrid) | $5.94 \pm 0.88\%$ | $12.03 \pm 1.37\%$ | $7.53 \pm 1.81\%$ | $55.46 \pm 0.61\%$ |
+| Support Vector Machine (Linear SVM) | $5.03 \pm 1.91\%$ | $19.78 \pm 2.38\%$ | $4.45 \pm 2.92\%$ | $56.75 \pm 1.25\%$ |
+| XGBoost (Hybrid) | $4.49 \pm 0.90\%$ | $11.26 \pm 1.64\%$ | $5.29 \pm 2.22\%$ | $54.48 \pm 0.74\%$ |
+| GNN Solely (Argmax Classification Head) | $2.72 \pm 0.39\%$ | **$51.79 \pm 6.77\%$** | $1.54 \pm 0.24\%$ | **$60.52 \pm 1.43\%$** |
+| **Mondal et al. [15] (Unsupervised Baseline)** | $0.51 \pm 0.03\%$ | $0.57 \pm 0.06\%$ | $0.77 \pm 0.02\%$ | $51.67 \pm 0.03\%$ |
+
+> 🚀 **Baseline Superiority:** Our proposed Hybrid GNN achieves **13.4× higher Macro $F_1$** and **32.9× higher Recall** compared to the published gate-level unsupervised baseline Mondal et al. [15] across identical LOCO folds.
+
+---
+
+## 📈 Confusion Matrix (Proposed Model)
+
+Averaged across all 5 seeds on the entire 108-circuit catalog (**1,489,029 gates per run**, total 7,445,145 gate evaluations):
+
+![Confusion Matrix](results/confusion_matrix_proposed_model.png)
+
+* **True Negatives (TN):** $1,467,284 \pm 7,524$ (**$98.65\%$ Specificity** — correctly filtering benign gates)
+* **False Positives (FP):** $20,078 \pm 7,524$ (**$1.35\%$ Fallout** — low false-alarm rate under extreme $0.1\%$ imbalance)
+* **True Positives (TP):** $281 \pm 32$ (True Trojan gates successfully localized)
+* **Overall Accuracy:** **$98.56\%$**
+
+---
+
 ## 📂 Repository Structure
 
 ```
@@ -98,14 +129,22 @@ TrojanNet-GNN/
 │   ├── response-to-reviewers.pdf        # Compiled response PDF
 │   └── reviewer_response_complete.tex   # LaTeX source for revision documents
 ├── results/
+│   ├── strict_loco/
+│   │   ├── strict_loco_all_6classifiers_raw.csv # Master 3,240-row LOCO raw evaluation CSV
+│   │   ├── strict_loco_summary.csv              # 5-seed Mean ± Std summary across 6 classifiers
+│   │   └── strict_loco_<model>.csv              # Per-model evaluation logs
+│   ├── ablation_complete_raw.csv        # 13,650-row full ablation evaluation suite
+│   ├── ablation_complete_summary.csv    # Summary table across representations, depths, drops
+│   ├── extratrees_feature_importances.csv # Gini feature importances across all LOCO folds
+│   ├── mondal_rare_net_raw.csv          # Prior detector baseline evaluation (540 rows)
+│   ├── mondal_rare_net_summary.csv      # Prior detector summary across 13 families
+│   ├── iscas_stimulus_sensitivity_1k_10k_100k.csv # 1k-100k vector sensitivity analysis
+│   ├── per_family_tp_statistics.csv     # Per-family simulated transition probability statistics
+│   ├── confusion_matrix_proposed_model.png # High-resolution confusion matrix heatmap
+│   ├── confusion_matrix_proposed_model.pdf # Vector confusion matrix for LaTeX
+│   ├── rs232_trojan_nodes_with_verdict.csv # Trust-Hub verified positive gates in RS232
 │   ├── Table_S3_correlation.csv         # Clean 7x7 Pearson feature correlation matrix
 │   ├── Table_S4_pca.csv                 # Clean 7-component PCA variance decomposition
-│   ├── aes_trojan_nodes_with_names.csv  # Verified list of all 401 Trojan gates in AES-128
-│   ├── non_iscas_trojan_nodes_with_names.csv # 454 positive gates in B19, Ethernet, wb_conmax
-│   ├── rs232_trojan_nodes_with_verdict.csv # Trust-Hub verified positive gates in RS232
-│   ├── determinism_run1.csv             # Determinism check Run 1 (Seed 42, Extra Trees)
-│   ├── determinism_run2.csv             # Determinism check Run 2 (Bitwise identical)
-│   ├── strict_loco_summary.csv          # Comprehensive strict-LOCO multi-seed summary
 │   └── htpipe.pdf                       # Vector pipeline architecture diagram (Fig. 2)
 ├── src/
 │   ├── data_preparation/               # Feature extraction and netlist graph builders
@@ -116,8 +155,8 @@ TrojanNet-GNN/
 │   │   └── wb_conmax_pipeline.py        # Wishbone interconnect pipeline
 │   └── models/                          # GNN and downstream ensemble classifiers
 │       ├── run_strict_loco_6classifiers.py # Strict cross-family LOCO across 13 families & 5 seeds
-│       ├── run_complete_ablations_loco.py  # Reviewer 1 & 2 ablation suite (8 configurations)
-│       └── localization_pipeline.py     # Unsupervised propagation anomaly detection
+│       ├── run_complete_ablations_loco.py  # Complete Reviewer 1 & 2 ablation suite
+│       └── run_mondal_rare_net.py       # Mondal et al. [15] baseline evaluation
 ├── requirements.txt                     # Python dependencies
 └── README.md
 ```
